@@ -66,7 +66,16 @@ class Section(models.Model):
         return f"{self.section_id} {self.course.course_name}"
 
 
-class SubjectSyllabus(models.Model):
+class Instructor(models.Model):
+    dept = models.ForeignKey(Department, on_delete=models.CASCADE)
+    instructor_id = models.IntegerField(max_length=20)
+    instructor_name = models.CharField(max_length=100, null=True)
+
+    def __str__(self):
+        return f"{self.instructor_name} ({self.instructor_id})"
+    
+
+class Subject(models.Model):
     dept = models.ForeignKey(Department, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     year = models.IntegerField(choices=YEAR, null=True) 
@@ -75,6 +84,7 @@ class SubjectSyllabus(models.Model):
     subject_type = models.CharField(choices=SUBJECT_TYPE, null=True, blank=True)
     lec_units = models.IntegerField(choices=UNITS, default=0, null=True)
     lab_units = models.IntegerField(choices=UNITS, default=0, null=True)
+    instructors = models.ManyToManyField(Instructor, related_name="subjects")
 
     def __str__(self):
         return f"[{self.subject_id}] - {self.subject_name} ({self.course} {self.year})"
@@ -88,6 +98,14 @@ class Room(models.Model):
         return f"{self.room_id} [{self.dept_priority.dept_id}]" 
 
 
+class TimeSlot(models.Model):
+    time_slot = models.CharField(choices=TIMESLOTS)
+    days = models.CharField(choices=DAYS_OF_WEEK)
+
+    def __str__(self):
+        return f"{self.days} - {self.time_slot}"
+
+
 class TimeSlotCustom(models.Model):
     start_time = models.TimeField(default='00:00:00')
     end_time = models.TimeField(default="00:00:00")
@@ -97,8 +115,9 @@ class TimeSlotCustom(models.Model):
         return f"{self.start_time} - {self.end_time}"
     
 
-class Instructor(models.Model):
-    dept = models.ForeignKey(Department, on_delete=models.CASCADE)
-    instructor_id = models.IntegerField(max_length=20)
-    instructor_name = models.CharField(max_length=100, null=True)
-
+class SessionMeeting(models.Model):
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
+    instructor = models.ForeignKey(Instructor, on_delete=models.CASCADE, null=True, blank=True)
+    timeslot = models.ManyToManyField(TimeSlot)
+    days = models.CharField(choices=DAYS_OF_WEEK)
+    room = models.ManyToManyField(Room)
