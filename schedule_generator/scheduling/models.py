@@ -60,16 +60,17 @@ class Course(models.Model):
 class Section(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     course_year = models.IntegerField(null=True)
-    section_id = models.CharField(max_length=10, unique=True)
+    section_id = models.CharField(max_length=10)
 
     def __str__(self):
         return f"{self.section_id} {self.course.course_name}"
 
 
 class Instructor(models.Model):
-    dept = models.ForeignKey(Department, on_delete=models.CASCADE)
     instructor_id = models.IntegerField(max_length=20)
     instructor_name = models.CharField(max_length=100, null=True)
+    dept = models.ForeignKey(Department, on_delete=models.CASCADE)
+    
 
     def __str__(self):
         return f"{self.instructor_name} ({self.instructor_id})"
