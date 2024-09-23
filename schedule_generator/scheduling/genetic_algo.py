@@ -12,23 +12,79 @@ class GeneticAlgorithm:
         self.mutation_rate = mutation_rate
 
     # Represents a random initial population
-    def initialize_population(self, subjects, instructors, rooms, timeslots):
+    def initialize_population(self, departments, courses, sections, subjects, instructors, rooms, timeslots):
+        
         population = []
+
         for _ in range(self.population_size):
             individual = []
-            for subject in subjects:
-                instructor = random.choice(instructors)
-                room = random.choice(rooms)
-                timeslot = random.choice(timeslots)
-                
-                individual.append({
-                    'subject': subject,
-                    'instructor': instructor,
-                    'room': room,
-                    'timeslot': timeslot,
-                })
+            schedule_checker = defaultdict(lambda: defaultdict(list))
+
+            for department in departments:
+                dept_course = [course for course in courses if course.department == department]
+
+                for course in dept_course:
+                    course_sections = [section for section in sections if section.course == course]
+
+                    for section in course_sections :
+                        year_level = section.year_level
+
+                        section_subjects = [
+                            subject for subject in subjects 
+                            if subject.course == course and subject.year_level == year_level 
+                        ]
+
+                        for subject in section_subjects:
+                            assigned_timeslot = None
+                            assigned_room = None
+                            assigned_instructor = None
+
+                            attempts = 0
+                            max_attempts = 100
+                            while attempts < max_attempts:
+                                assigned_timeslot = random.choice(timeslots)
+                                assigned_room = random.choice(rooms)
+                                assigned_instructor = random.choice(instructors)
+                                
+                                room_conflict = assigned_room in schedule_checker[assigned_timeslot]['room']
+                                instructor_conflict = assigned_instructor in schedule_checker[assigned_timeslot]['instructor']
+                                instructor_overload = self.instructor_meeting_count(individual, assigned_instructor) >= 2
+
+                                if not room_conflict and not instructor_conflict and not instructor_overload:
+                                    break
+
+                                attempts += 1
+
+                            if attempts == max_attempts:
+                                continue
+
+                            schedule_checker[assigned_timeslot]['rooms'].append(assigned_room)
+                            schedule_checker[assigned_timeslot]['instructors'].append(assigned_instructor)
+
+
+                            individual.append({
+                                'department': department,
+                                'course': course,
+                                'section': section,
+                                'subject': subject,
+                                'instructor': assigned_instructor,
+                                'room': assigned_room,
+                                'timeslot': assigned_timeslot,
+                            })    
             population.append(individual)
-        return population
+
+        return population    
+    
+        
+    def instructor_meeting_count(self, individual, instructor):
+
+        count = 0
+        for session in individual:
+            if session['instructor'] == instructor:
+                count += 1
+
+        return count        
+
     
      # Fitness function: Evaluates how many constraints are violated in a given schedule
     def fitness(self, individual):
@@ -36,15 +92,18 @@ class GeneticAlgorithm:
         score = 100 # Start with a perfect score
 
         # Check for room conflicts
-        room_occupancy = defaultdict(list) # Tracks room usage per timeslot
-        instructor_usage = defaultdict(list) # Tracks instructor usage per timeslot
+        room_schedule = defaultdict(list) # Tracks room usage per timeslot
+        instructor_schedule = defaultdict(list) # Tracks instructor usage per timeslot
 
         for session in individual:
             timeslot = session['timeslot']
             room = session['room']
             instructor = session['instructor']
+            day = timeslot.day_of_week
 
-             # Check room conflicts
+
+        '''
+          # Check room conflicts
             if room in room_occupancy[timeslot]:
                 score -= 10 # Penalty for instructor conflict
             else:
@@ -63,6 +122,26 @@ class GeneticAlgorithm:
             instructor_meetings[instructor] += 1
             if instructor_meetings[instructor] > 2:
                 score -= 5 # Penalty for exceeding 2 meetings per day
+        
+        '''
+        
+        room_key = (room, day, timeslot)
+        if room_key in room_schedule:
+            score -= 10  # Penalty for room conflict
+        else:
+            room_schedule[room_key].append(session)
+
+        # Instructor Conflict Check
+        instructor_key = (instructor, day, timeslot)
+        if instructor_key in instructor_schedule:
+            score -= 10  # Penalty for instructor conflict
+        else:
+            instructor_schedule[instructor_key].append(session)
+
+        # Instructor Meeting Limit per Day
+        instructor_day_meetings = sum(1 for s in individual if s['instructor'] == instructor and s['timeslot'].day_of_week == day)
+        if instructor_day_meetings > 2:
+            score -= 5  # Penalty for exceeding daily meeting limit
         
         
         return score
@@ -87,8 +166,8 @@ class GeneticAlgorithm:
 
 
     # Main loop of the genetic algorithm
-    def run(self, subjects, instructors, rooms, timeslots):
-        population = self.initialize_population(subjects, instructors, rooms, timeslots)
+    def run(self, population, instructors, rooms, timeslots):
+    
 
         for generation in range(self.generations):
 
@@ -97,7 +176,7 @@ class GeneticAlgorithm:
 
 
             # If the best individual has a perfect score, we're done
-            if self.fitness(population[0]) == 100:
+            if self.fitness(population[0]) >= 100:
                 break
 
 

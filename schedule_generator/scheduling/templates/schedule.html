@@ -1,0 +1,28 @@
+<table></table>
+    <thead>
+        <tr>
+            <th>Department</th>
+            <th>Course</th>
+            <th>Year Level</th>
+            <th>Section</th>
+            <th>Subject</th>
+            <th>Instructor</th>
+            <th>Room</th>
+            <th>Timeslot</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for session in schedule %}
+        <tr>
+            <td>{{ session.department.name }}</td>
+            <td>{{ session.course.name }}</td>
+            <td>{{ session.section.year_level }}</td>
+            <td>{{ session.section.name }}</td>
+            <td>{{ session.subject.name }}</td>
+            <td>{{ session.instructor.name }}</td>
+            <td>{{ session.room.code }}</td>
+            <td>{{ session.timeslot.start_time }} - {{ session.timeslot.end_time }} ({{ session.timeslot.day }})</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

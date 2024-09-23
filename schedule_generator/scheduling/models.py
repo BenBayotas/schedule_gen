@@ -49,7 +49,7 @@ class Department(models.Model):
     
 
 class Course(models.Model):
-    dept = models.ForeignKey(Department, on_delete=models.CASCADE)
+    department = models.ForeignKey(Department, on_delete=models.CASCADE)
     course_id = models.CharField(max_length=20, unique=True, null=True)
     course_name = models.CharField(max_length=100)
 
@@ -59,8 +59,8 @@ class Course(models.Model):
 
 class Section(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
-    course_year = models.IntegerField(null=True)
-    section_id = models.CharField(max_length=10)
+    year_level = models.IntegerField(null=True)
+    name = models.CharField(max_length=10)
 
     def __str__(self):
         return f"{self.section_id} {self.course.course_name}"
@@ -77,11 +77,11 @@ class Instructor(models.Model):
     
 
 class Subject(models.Model):
-    dept = models.ForeignKey(Department, on_delete=models.CASCADE)
+    department = models.ForeignKey(Department, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
-    year = models.IntegerField(choices=YEAR, null=True) 
+    year_level = models.IntegerField(choices=YEAR, null=True) 
     subject_id = models.CharField(max_length=10, null=True, unique=True)
-    subject_name = models.CharField(max_length=100, null=True)
+    name = models.CharField(max_length=100, null=True)
     subject_type = models.CharField(choices=SUBJECT_TYPE, null=True, blank=True)
     lec_units = models.IntegerField(choices=UNITS, default=0, null=True)
     lab_units = models.IntegerField(choices=UNITS, default=0, null=True)
@@ -101,7 +101,7 @@ class Room(models.Model):
 
 class TimeSlot(models.Model):
     time_slot = models.CharField(choices=TIMESLOTS)
-    days = models.CharField(choices=DAYS_OF_WEEK)
+    day_of_week = models.CharField(choices=DAYS_OF_WEEK)
 
     def __str__(self):
         return f"{self.days} - {self.time_slot}"
@@ -110,7 +110,7 @@ class TimeSlot(models.Model):
 class TimeSlotCustom(models.Model):
     start_time = models.TimeField(default='00:00:00')
     end_time = models.TimeField(default="00:00:00")
-    day = models.CharField(choices=DAYS_OF_WEEK, null=True, blank=True)
+    day_of_week = models.CharField(choices=DAYS_OF_WEEK, null=True, blank=True)
 
     def __str__(self):
         return f"{self.start_time} - {self.end_time}"
