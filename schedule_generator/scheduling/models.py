@@ -11,6 +11,18 @@ TIMESLOTS = (
     ('6:00 PM - 7:30 PM', '6:00 PM - 7:30 PM'),
     ('7:30 PM - 9:00 PM', '7:30 PM - 9:00 PM'),
 )
+TIMESLOT_CUSTOM = (
+    ('7:30 AM', '7:30 AM'),
+    ('9:00 AM', '9:00 AM'),
+    ('10:30 AM', '10:30 AM'),
+    ('12:00 PM', '12:00 PM'),
+    ('1:30 PM', '1:30 PM'),
+    ('3:00 PM', '3:00 PM'),
+    ('4:30 PM', '4:30 PM'),
+    ('6:00 PM', '6:00 PM'),
+    ('7:30 PM', '7:30 PM'),
+    ('9:00 PM', '9:00 PM'),
+)
 
 DAYS_OF_WEEK = (
     ('MTH', 'MTH'),
@@ -108,8 +120,8 @@ class TimeSlot(models.Model):
 
 
 class TimeSlotCustom(models.Model):
-    start_time = models.TimeField(default='00:00:00')
-    end_time = models.TimeField(default="00:00:00")
+    start_time = models.CharField(choices=TIMESLOT_CUSTOM, default='7:30 AM')
+    end_time = models.CharField(choices=TIMESLOT_CUSTOM, default="9:00 AM")
     day_of_week = models.CharField(choices=DAYS_OF_WEEK, null=True, blank=True)
 
     def __str__(self):
