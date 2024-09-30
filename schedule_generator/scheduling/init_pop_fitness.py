@@ -80,5 +80,5 @@ def fitness(individual_schedule):
     instructor_daily_sessions[instructor][day] += 1
     if instructor_daily_sessions[instructor][day] > 2:
       fitness_score -= 10
-    return fitness_score  
+  return fitness_score  
     
