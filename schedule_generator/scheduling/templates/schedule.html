@@ -1,28 +1,54 @@
-<table></table>
-    <thead>
-        <tr>
-            <th>Department</th>
-            <th>Course</th>
-            <th>Year Level</th>
-            <th>Section</th>
-            <th>Subject</th>
-            <th>Instructor</th>
-            <th>Room</th>
-            <th>Timeslot</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for session in schedule %}
-        <tr>
-            <td>{{ session.department.name }}</td>
-            <td>{{ session.course.name }}</td>
-            <td>{{ session.section.year_level }}</td>
-            <td>{{ session.section.name }}</td>
-            <td>{{ session.subject.name }}</td>
-            <td>{{ session.instructor.name }}</td>
-            <td>{{ session.room.code }}</td>
-            <td>{{ session.timeslot.start_time }} - {{ session.timeslot.end_time }} ({{ session.timeslot.day }})</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Schedule Generator</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>Schedule Generator</h1>
+    <button id="generate-btn">Generate Schedule</button>
+    <div id="schedule-table"></div>
+
+    <script type="text/javascript">
+        $(document).ready(function() {
+            $('#generate-btn').click(function() {
+                $.ajax({
+                    type: 'POST',
+                    url: '',
+                    data: {
+                        csrfmiddlewaretoken: '{{ csrf_token }}'
+                    },
+                    success: function(response) {
+                        displaySchedule(response.schedule);
+                    },
+                    error: function() {
+                        alert('Error generating schedule.');
+                    }
+                });
+            });
+        });
+
+        function displaySchedule(schedule) {
+            var tableHtml = '<table border="1"><tr>';
+
+            // Get room headers
+            schedule[0].forEach(function(session) {
+                tableHtml += '<th>' + session.room.name + '</th>';
+            });
+            tableHtml += '</tr>';
+
+            // Get rows for timeslots
+            schedule.forEach(function(row) {
+                tableHtml += '<tr>';
+                row.forEach(function(session) {
+                    tableHtml += '<td>' + session.subject.name + ' (' + session.instructor.name + ')</td>';
+                });
+                tableHtml += '</tr>';
+            });
+
+            tableHtml += '</table>';
+            $('#schedule-table').html(tableHtml);
+        }
+    </script>
+</body>
+</html>
