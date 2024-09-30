@@ -7,10 +7,10 @@ from .genetic_algorithm import GeneticAlgorithm
 
 def schedule_view(request):
     
-   if request.method == 'POST'
+   if request.method == 'POST':
 
         ga = GeneticAlgorithm(population_size=50, generations=100, mutation_rate=0.01)
         best_schedule = ga.evolve()
 
         return JsonResponse({'schedule': best_schedule})
-    return render(request, 'schedule.html')
+    
