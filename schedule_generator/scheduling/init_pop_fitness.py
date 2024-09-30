@@ -54,6 +54,25 @@ def initialize_population(population_size):
     population.append(individual_schedule)                  
   return population            
           
-      
 
+def fitness(individual_schedule):
+  fitness_score = 100
   
+  room_timeslot_usage = defaultdict(list)
+  instructor_subject_count = defaultdict(int)
+  instructor_daily_sessions = defaultdict(lambda: defaultdict(int))
+
+  for session in individual_schedule:
+    room = session['room']
+    timeslot = session['timeslot']
+    instructor = session['instructor']
+    day = timeslot.day
+
+    if room in room_timeslot_usage[timeslot]:
+      fitness_score -= 10
+    else:
+      room_timeslot_usage[timeslot].append(room)
+      
+    instructor_subject_count[instructor] += 1
+    if instructor_subject_count[instructor] > 3:
+      fitness_score -= 10
