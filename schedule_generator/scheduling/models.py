@@ -1,4 +1,5 @@
 from django.db import models
+from datetime import timedelta, datetime, date
 
 TIMESLOTS = (
     ('7:30 AM - 9:00 AM', '7:30 AM - 9:00 AM'),
@@ -25,10 +26,10 @@ TIMESLOT_CUSTOM = (
 )
 
 DAYS_OF_WEEK = (
-    ('MTH', 'MTH'),
-    ('TF', 'TF'),
-    ('W', 'W'),
-    ('SAT', 'SAT'),
+    ('MTh', 'Monday/Thursday'),
+    ('TF', 'Tuesday/Friday'),
+    ('W', 'Wednesday'),
+    ('Sat', 'Saturday'),
 )
 
 YEAR = (
@@ -53,11 +54,38 @@ UNITS = (
 # Create your models here.
 
 
+class Room(models.Model):
+    room_id = models.CharField(max_length=10, unique=True)
+    
+    def __str__(self):
+        return f"{self.room_id}" 
+        
 
-# ---------DEPARTMENT HEIRARCHY ---------- #
+class Timeslot(models.Model):
+   
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
+    days = models.CharField(max_length=20, choices=DAYS_OF_WEEK, default='MTh')
+
+    def calculate_end_time(self, duration, session_days):
+
+        if session_days in ["Mth", "TF"]:
+            session_duration = duration / 2
+        elif session_days in ["W", "Sat"]:
+            session_duration = duration
+        else:
+            raise ValueError("Invalid Session days")
+
+        session_duration_delta = timedelta(hours=session_duration)
+        self.end_time = (datetime.combine(date.today(), self.start_time) + session_duration_delta).time()        
+
+    def __str__(self):
+        return f"{self.get_days_display()} {self.start_time.strftime('%I:%M %p')} - {self.end_time.strftime('%I:%M %p')}"
+
+
 
 class Department(models.Model):
-    dept_id = models.CharField(max_length=10, unique=True)
+    dept_id = models.CharField(max_length=10, primary_key=True)
     department_name = models.CharField(max_length=100)
 
     def __str__(self):
@@ -65,7 +93,7 @@ class Department(models.Model):
     
 
 class Course(models.Model):
-    course_id = models.CharField(max_length=20, unique=True, null=True)
+    course_id = models.CharField(max_length=20, primary_key=True)
     course_name = models.CharField(max_length=100)
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     
@@ -75,6 +103,7 @@ class Course(models.Model):
     
 
 class Section(models.Model):
+    section_id = models.CharField(max_length=10, primary_key=True)
     section_name = models.CharField(max_length=10)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     year_level = models.IntegerField(choices=YEAR, null=True)
@@ -86,62 +115,29 @@ class Section(models.Model):
 
 class Subject(models.Model):
 
-    subject_id = models.CharField(max_length=10, null=True, unique=True)
+    subject_id = models.CharField(max_length=15, primary_key=True)
     subject_name = models.CharField(max_length=100, null=True)
-    type = models.CharField(choices=SUBJECT_TYPE, null=True, blank=True)
-    lec_units = models.IntegerField(choices=UNITS, default=0, null=True)
-    lab_units = models.IntegerField(choices=UNITS, default=0, null=True)
-
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     course = models.ManyToManyField(Course)
     year_level = models.IntegerField(choices=YEAR, null=True) 
 
-    def __str__(self):
-        return f"[{self.subject_id}] - {self.subject_name} ({self.course} {self.year_level})"
+    duration = models.FloatField()
+    timeslot = models.ForeignKey(Timeslot, on_delete=models.CASCADE)
 
+    def set_timeslot_end_time(self):
+        self.timeslot.calculate_end_time(self.duration, self.timeslot)
+        self.timeslot.save()
+    
 
 class Instructor(models.Model):
-    id = models.IntegerField(max_length=20)
+    id = models.IntegerField(max_length=20, primary_key=True)
     name = models.CharField(max_length=100, null=True)
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
-    expertise = models.ManyToManyField(Subject)  # Instructors can have expertise in many subjects
-    subjects_handled = models.ManyToManyField(Subject, related_name='handled_by', blank=True)  # Track the subjects an instructor is handling
-
+    subject_expertise = models.ManyToManyField(Subject)  # Instructors can have expertise in many subjects
+    
+    
     def __str__(self):
         return f"{self.id} ({self.name})"
 
 
-# -------- UNIVERSITY DATASETS ------------ #
 
-class Room(models.Model):
-    room_id = models.CharField(max_length=10, unique=True)
-    
-    def __str__(self):
-        return f"{self.room_id}" 
-
-
-class TimeSlot(models.Model):
-    time_slot = models.CharField(choices=TIMESLOTS)
-    days = models.CharField(choices=DAYS_OF_WEEK)
-
-    def __str__(self):
-        return f"{self.days} - {self.time_slot}"
-
-
-class TimeSlotCustom(models.Model):
-    start_time = models.CharField(choices=TIMESLOT_CUSTOM, default='7:30 AM')
-    end_time = models.CharField(choices=TIMESLOT_CUSTOM, default="9:00 AM")
-    day_of_week = models.CharField(choices=DAYS_OF_WEEK, null=True, blank=True)
-
-    def __str__(self):
-        return f"{self.day_of_week} {self.start_time} - {self.end_time}"
-    
-
-# ------------ SESSION MEETINGS ------------- #
-
-class SessionMeeting(models.Model):
-    subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
-    instructor = models.ForeignKey(Instructor, on_delete=models.CASCADE, null=True, blank=True)
-    timeslot = models.ManyToManyField(TimeSlot)
-    days = models.CharField(choices=DAYS_OF_WEEK)
-    room = models.ManyToManyField(Room)
