@@ -1,16 +1,16 @@
 from django.shortcuts import render
 from django.http import JsonResponse
-from .genetic_algorithm import GeneticAlgorithm
+from .init_pop_fitness import GeneticAlgorithm
 
 
 # Create your views here.
 
 def schedule_view(request):
     
-   if request.method == 'POST'
+   if request.method == 'POST':
 
-        ga = GeneticAlgorithm(population_size=50, generations=100, mutation_rate=0.01)
-        best_schedule = ga.evolve()
+        ga = GeneticAlgorithm(population_size=100, generations=50)
+        best_schedule = ga.run()
 
         return JsonResponse({'schedule': best_schedule})
-    return render(request, 'schedule.html')
+   return render(request, 'schedule.html')

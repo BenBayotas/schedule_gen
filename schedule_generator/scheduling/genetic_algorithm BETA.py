@@ -1,5 +1,5 @@
 import random
-from .models import Department, Room, Timeslot
+from .models import Department, Room
 from .init_pop_fitness import initialize_population, fitness
 
 class GeneticAlgorithm:
@@ -8,7 +8,8 @@ class GeneticAlgorithm:
     self.population_size = population_size
     self.generations = generations
     self.mutation_rate = mutation_rate
-    self.population = inilialize_population(population_size)
+    self.population = initialize_population(population_size)
+
 
   def evolve(self):
     for generation in range(self.generations):
@@ -23,17 +24,19 @@ class GeneticAlgorithm:
     best_individual = sorted(self.population, key=lambda x: fitness(x), reverse=True)[0]
     return best_individual
 
+
+
   def crossover_and_mutate(self, selected_population):
     new_population = selected_population.copy()
 
-    while len(new_population) < population_size:
+    while len(new_population) < self.population_size:
       parent1 = random.choice(selected_population)
       parent2 = random.choice(selected_population)
 
       crossover_point = random.randint(0, len(parent1) - 1)
       child = parent1[:crossover_point] + parent2[crossover_point:]
 
-      if random.random() < mutation_rate:
+      if random.random() < self.mutation_rate:
         child = self.mutate(child)
 
       new_population.append(child)
@@ -45,4 +48,4 @@ class GeneticAlgorithm:
 
     department = mutated_individual[index_to_mutate]['section'].course.department
     mutated_individual[index_to_mutate]['timeslot'] = random.choice(Timeslot.objects.filter(department=department)) # TO BE REVIEWED
-     mutated_individual[index_to_mutate]['room'] = random.choice(Room.objects.all())
+    mutated_individual[index_to_mutate]['room'] = random.choice(Room.objects.all())
