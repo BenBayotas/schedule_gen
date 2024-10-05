@@ -2,7 +2,31 @@
 <form method="POST" hx-post=" {% url 'department_form' %}" hx-target="#form-container" hx-swap="outerHTML">
         {% csrf_token %}
         {{ form.as_p }}
-        <button type="submit"> Save </button>
+        <button type="submit"> Save Department </button>
+</form>
+
+<form method="POST" hx-post=" {% url 'course_form' %}" hx-target="#form-container" hx-swap="outerHTML">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit"> Save Course</button>
+</form>
+
+<form method="POST" hx-post=" {% url 'section_form' %}" hx-target="#form-container" hx-swap="outerHTML">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit"> Save Section </button>
+</form>
+
+<form method="POST" hx-post=" {% url 'subject_form' %}" hx-target="#form-container" hx-swap="outerHTML">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit"> Save Subject </button>
+</form>
+
+<form method="POST" hx-post=" {% url 'room_form' %}" hx-target="#form-container" hx-swap="outerHTML">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit"> Save Room </button>
 </form>
 
 

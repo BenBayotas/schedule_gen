@@ -28,7 +28,7 @@ class SubjectForm(forms.ModelForm):
 
 class RoomForm(forms.ModelForm):
     class Meta:
-        model = Subject
+        model = Room
         fields = ['room_id', 'room_name', 'is_laboratory', 'department']
 
 
