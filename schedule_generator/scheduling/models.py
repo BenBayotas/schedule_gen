@@ -29,8 +29,7 @@ UNITS = (
 # Create your models here.
 
 
-
-        
+   
 class Department(models.Model):
     dept_id = models.CharField(max_length=10, primary_key=True)
     department_name = models.CharField(max_length=100)
@@ -61,7 +60,8 @@ class Section(models.Model):
 
 
 class Room(models.Model):
-    room_id = models.CharField(max_length=10, unique=True)
+    room_id = models.CharField(max_length=15, primary_key=True)
+    room_name = models.CharField(max_length=64, null=True, blank=True)
     is_laboratory = models.BooleanField(null=True, blank=True)
     department = models.ManyToManyField(Department, null=True, blank=True)
     
@@ -82,6 +82,7 @@ class Subject(models.Model):
 
     days = models.CharField(max_length=6, choices=DAYS_OF_WEEK)
     timeslot = models.CharField(max_length= 10, default="7:30AM-9:00AM")
+    weekly_duration = models.FloatField(default=3, null=True, blank=True)
     
     def __str__(self):
         return f"[{self.subject_id}] {self.subject_name} | {self.department.dept_id} - {self.course} {self.year_level} | {self.days} {self.timeslot}"    

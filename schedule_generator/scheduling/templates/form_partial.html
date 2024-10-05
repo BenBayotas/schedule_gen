@@ -1,0 +1,11 @@
+
+<form method="POST" hx-post=" {% url 'department_form' %}" hx-target="#form-container" hx-swap="outerHTML">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit"> Save </button>
+</form>
+
+
+
+
+

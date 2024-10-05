@@ -102,6 +102,8 @@ def fitness(individual_schedule):
 
     return fitness_score
 
+    
+
 def selection(population, fitness_scores, k=3):
      selected = random.choices(population, weights=fitness_scores, k=k)
      
