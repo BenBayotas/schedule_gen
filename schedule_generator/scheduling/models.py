@@ -73,7 +73,7 @@ class Room(models.Model):
     room_id = models.CharField(max_length=15, primary_key=True)
     room_name = models.CharField(max_length=64, null=True, blank=True)
     room_floor = models.IntegerField(max_length=4)
-    room_location = models.CharField(max=20, choices=LOCATION)
+    room_building = models.CharField(max=20, choices=LOCATION)
     is_laboratory = models.BooleanField(null=True, blank=True)
     department_priority = models.ManyToManyField(Department, null=True, blank=True)
     
@@ -92,7 +92,7 @@ class Subject(models.Model):
     year_level = models.IntegerField(choices=YEAR, null=True)
     requires_laboratory = models.BooleanField(null=True, blank=True) 
     subject_type = models.CharField(max_length=6, choices=SUBJECT_TYPE)
-    
+
 
     days = models.CharField(max_length=6, choices=DAYS_OF_WEEK)
     timeslot = models.CharField(max_length= 10, default="7:30AM-9:00AM")
