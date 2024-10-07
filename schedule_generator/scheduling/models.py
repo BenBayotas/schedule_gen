@@ -91,6 +91,8 @@ class Subject(models.Model):
     section = models.ForeignKey(Section, on_delete=models.CASCADE)
     year_level = models.IntegerField(choices=YEAR, null=True)
     requires_laboratory = models.BooleanField(null=True, blank=True) 
+    subject_type = models.CharField(max_length=6, choices=SUBJECT_TYPE)
+    
 
     days = models.CharField(max_length=6, choices=DAYS_OF_WEEK)
     timeslot = models.CharField(max_length= 10, default="7:30AM-9:00AM")
