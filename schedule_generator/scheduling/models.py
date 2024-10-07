@@ -1,5 +1,6 @@
 from django.db import models
 
+
 DAYS_OF_WEEK = (
     ('M/TH', 'M/TH'),
     ('T/F', 'T/F'),
@@ -26,6 +27,14 @@ UNITS = (
     (3, 3),
 )
 
+LOCATION = (
+    ('CB MAIN', 'CB MAIN'),
+    ('CBS SOUTH', 'CBS SOUTH'),
+    ('CBE EAST', 'CBE EAST'),
+)
+
+
+
 # Create your models here.
 
 
@@ -33,6 +42,7 @@ UNITS = (
 class Department(models.Model):
     dept_id = models.CharField(max_length=10, primary_key=True)
     department_name = models.CharField(max_length=100)
+
 
     def __str__(self):
         return f"{self.dept_id} - {self.department_name}"
@@ -62,8 +72,10 @@ class Section(models.Model):
 class Room(models.Model):
     room_id = models.CharField(max_length=15, primary_key=True)
     room_name = models.CharField(max_length=64, null=True, blank=True)
+    room_floor = models.IntegerField(max_length=4)
+    room_location = models.CharField(max=20, choices=LOCATION)
     is_laboratory = models.BooleanField(null=True, blank=True)
-    department = models.ManyToManyField(Department, null=True, blank=True)
+    department_priority = models.ManyToManyField(Department, null=True, blank=True)
     
     
     def __str__(self):
@@ -86,6 +98,9 @@ class Subject(models.Model):
     
     def __str__(self):
         return f"[{self.subject_id}] {self.subject_name} | {self.department.dept_id} - {self.course} {self.year_level} | {self.days} {self.timeslot}"    
+
+
+
 
 
 class Instructor(models.Model):
