@@ -1,6 +1,6 @@
 import random
 from collections import defaultdict
-from datetime import timedelta
+from datetime import timedelta, time
 from .models import *
 
 
@@ -22,6 +22,7 @@ class GeneticAlgorithm:
 
             for department in departments:
                 dept_course = [course for course in courses if course.department == department]
+                dept_instructor = [instructor for instructor in instructors if instructor.department == department]
 
                 for course in dept_course:
                     course_sections = [section for section in sections if section.course == course]
@@ -34,6 +35,7 @@ class GeneticAlgorithm:
                             if subject.course == course and subject.year_level == year_level 
                         ]
 
+
                         for subject in section_subjects:
                             assigned_timeslot = None
                             assigned_room = None
@@ -44,7 +46,7 @@ class GeneticAlgorithm:
                             while attempts < max_attempts:
                                 assigned_timeslot = random.choice(timeslots)
                                 assigned_room = random.choice(rooms)
-                                assigned_instructor = random.choice(instructors)
+                                assigned_instructor = random.choice(dept_instructor)
                                 
                                 room_conflict = assigned_room in schedule_checker[assigned_timeslot]['room']
                                 instructor_conflict = assigned_instructor in schedule_checker[assigned_timeslot]['instructor']
@@ -89,62 +91,76 @@ class GeneticAlgorithm:
      # Fitness function: Evaluates how many constraints are violated in a given schedule
     def fitness(self, individual):
 
-        score = 100 # Start with a perfect score
+        score = 100 # Start with a perfect score and deduct penalties for violations
+        room_conflicts_within_dept = 0
+        room_conflicts_between_dept = 0
+        instructor_overload = 0
+        
 
-        # Check for room conflicts
-        room_schedule = defaultdict(list) # Tracks room usage per timeslot
-        instructor_schedule = defaultdict(list) # Tracks instructor usage per timeslot
+        instructor_day_sessions = defaultdict(lambda: defaultdict(list))  # Instructor -> day -> count
+        instructor_subjects = defaultdict(list) # Instructor -> subject count
 
+        
         for session in individual:
-            timeslot = session['timeslot']
-            room = session['room']
+            department = session['department']
+            course = session['course']
+            section = session['section']
+            subject = session['subject']
             instructor = session['instructor']
-            day = timeslot.day_of_week
+            room = session['room']
+            timeslot = session['timeslot']
+
+            day_of_week = timeslot.day_of_week
+            
+
+            # 1. Check for room conflicts within the same department
+            for other_session in individual:
+                if session == other_session:
+                    continue  # Skip the current session being checked
+
+                other_department = other_session['department']
+                other_room = other_session['room']
+                other_timeslot = other_session['timeslot']
+
+                if department == other_department and timeslot == other_timeslot and room == other_room:
+                    room_conflicts_within_dept += 1
 
 
-        '''
-          # Check room conflicts
-            if room in room_occupancy[timeslot]:
-                score -= 10 # Penalty for instructor conflict
-            else:
-                instructor_usage[timeslot].append(room)
+            # 2. Check for room conflicts between departments
+            for other_session in individual:
+                if session == other_session:
+                    continue  # Skip the current session being checked
+
+                other_department = other_session['department']
+                other_room = other_session['room']
+                other_timeslot = other_session['timeslot']
+
+                if department != other_department and timeslot == other_timeslot and room == other_room:
+                    room_conflicts_between_dept += 1
 
 
-            # Check instructor conflicts
-            if instructor in instructor_usage[timeslot]:
-                score -= 10 # Penalty for instructor conflict
-            else:
-                instructor_usage[timeslot].append(instructor)    
+             # 3. Check if instructor has more than 2 sessions in a day
+            instructor_day_sessions[instructor][day_of_week] += 1
+            if instructor_day_sessions[instructor][day_of_week] > 2:
+                instructor_overload += 1   
 
 
-            # Check if instructor has more than 2 meetings per day
-            instructor_meetings = defaultdict(list)
-            instructor_meetings[instructor] += 1
-            if instructor_meetings[instructor] > 2:
-                score -= 5 # Penalty for exceeding 2 meetings per day
-        
-        '''
-        
-        room_key = (room, day, timeslot)
-        if room_key in room_schedule:
-            score -= 10  # Penalty for room conflict
-        else:
-            room_schedule[room_key].append(session)
+             # 4. Check if instructor is handling more than 3 subjects 
+            instructor_subjects[instructor] += 1
+            if instructor_subjects[instructor] > 3:
+                instructor_overload += 1      
 
-        # Instructor Conflict Check
-        instructor_key = (instructor, day, timeslot)
-        if instructor_key in instructor_schedule:
-            score -= 10  # Penalty for instructor conflict
-        else:
-            instructor_schedule[instructor_key].append(session)
+         # Deduct points based on the number of conflicts and overloads
+        score -= room_conflicts_within_dept * 10  # Heavily penalize room conflicts within the department
+        score -= room_conflicts_between_dept * 10  # Penalize room conflicts between departments
+        score -= instructor_overload * 10  # Penalize instructor overload (sessions per day and total subjects)
 
-        # Instructor Meeting Limit per Day
-        instructor_day_meetings = sum(1 for s in individual if s['instructor'] == instructor and s['timeslot'].day_of_week == day)
-        if instructor_day_meetings > 2:
-            score -= 5  # Penalty for exceeding daily meeting limit
-        
-        
+    # Ensure score does not go below zero
+        if score < 0:
+            score = 0
+
         return score
+
 
 
      # Crossover: Create offspring by combining two parent schedules

@@ -1,21 +1,69 @@
-from django.shortcuts import render
-from django.shortcuts import render
-from .models import Department, Course, Section, Subject, Instructor, Room, TimeSlot
-from .genetic_algo import GeneticAlgorithm
+from django.shortcuts import render, redirect
+from django.http import JsonResponse, HttpResponse
+from .genetic_algorithm import GeneticAlgorithm
+from .forms import *
 
-def generate_schedule(request):
-    departments = Department.objects.all()
-    courses = Course.objects.all()
-    sections = Section.objects.all()
-    subjects = Subject.objects.all()
-    instructors = Instructor.objects.all()
-    rooms = Room.objects.all()
-    timeslots = TimeSlot.objects.all()
 
-    # Instantiate and run the genetic algorithm
-    ga = GeneticAlgorithm(population_size=20, generations=100, mutation_rate=0.05)
-    initial_population = ga.initialize_population(departments, courses, sections, subjects, instructors, rooms, timeslots)
-    best_schedule = ga.run(initial_population, instructors, rooms, timeslots)
-
-    return render(request, 'schedule.html', {'schedule': best_schedule})
 # Create your views here.
+
+def department_form_view(request):
+    if request.method == 'POST':
+        form = DepartmentForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return HttpResponse('Department Saved!')
+
+    else:
+        form = DepartmentForm()
+    return render(request, 'form_partial.html', {'form': form})
+
+
+def course_form_view(request):
+    if request.method == 'POST':
+        form = CourseForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return HttpResponse('Course Saved!')
+
+    else:
+        form = CourseForm()
+    return render(request, 'form_partial.html', {'form': form})
+
+
+def section_form_view(request):
+    if request.method == 'POST':
+        form = SectionForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return HttpResponse('Section Saved!')
+
+    else:
+        form = SectionForm()
+    return render(request, 'form_partial.html', {'form': form})
+
+
+def subject_form_view(request):
+    if request.method == 'POST':
+        form = SubjectForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return HttpResponse('Subject Saved!')
+
+    else:
+        form = SubjectForm()
+    return render(request, 'form_partial.html', {'form': form})
+
+
+def room_form_view(request):
+    if request.method == 'POST':
+        form = RoomForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return HttpResponse('Room Saved!')
+    else:
+        form = RoomForm()
+    return render(request, 'form_partial.html', {'form': form})       
+
+           
+        
+
