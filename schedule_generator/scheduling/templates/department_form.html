@@ -10,16 +10,19 @@
 </head>
 <body>
 
-        <a href="{% url 'home' %}"> HOME </a>
-
-        <main class="containter">
-
-                <form method="POST" hx-post=" {% url 'department_form' %}" hx-target="#form-container" hx-swap="outerHTML">
+        <div id="department-form">
+                <a href="{% url 'home' %}"> HOME </a>
+                <form method="POST" hx-post=" {% url 'department_form' %}" hx-target="#department-form" hx-swap="outerHTML">
                         {% csrf_token %}
                         {{ form.as_p }}
                         <button type="submit"> Save Department </button>
+                        {% if saved %}
+                                <p style="color: green;">Department saved successfully!</p>
+                        {% endif %}
                 </form>
-        </main>
+        </div>
+                
+       
         
         
 </body>

@@ -10,15 +10,21 @@
 </head>
 <body>
 
-        <a href="{% url 'home' %}"> HOME </a>
+       
 
-        <main class="containter">
-
-                <form method="POST" hx-post=" {% url 'section_form' %}" hx-target="#form-container" hx-swap="outerHTML">
+        <div id="section-form">
+                <a href="{% url 'home' %}"> HOME </a>
+                <form method="POST" hx-post=" {% url 'section_form' %}" hx-target="#section-form" hx-swap="outerHTML">
                         {% csrf_token %}
                         {{ form.as_p }}
                         <button type="submit"> Save Section </button>
+                        {% if saved %}
+                                <p style="color: green;">Section saved successfully!</p>
+                        {% endif %}
                 </form>
+
+        </div>
+                
                 
                 
         </main>

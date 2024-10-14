@@ -17,11 +17,15 @@ def department_form_view(request):
         form = DepartmentForm(request.POST)
         if form.is_valid():
             form.save()
-            return HttpResponse('Department Saved!')
-
+            
+            return render(request, 'department_form.html', {'form': form, 'saved': True})
+        else:
+            
+            return render(request, 'department_form.html', {'form': form})
     else:
         form = DepartmentForm()
-    return render(request, 'department_form.html', {'form': form})
+        return render(request, 'department_form.html', {'form': form})
+
 
 
 def course_form_view(request):
@@ -29,8 +33,11 @@ def course_form_view(request):
         form = CourseForm(request.POST)
         if form.is_valid():
             form.save()
-            return HttpResponse('Course Saved!')
 
+            return render(request, 'course_form.html', {'form': form, 'saved': True})
+        else:
+           return render(request, 'course_form.html', {'form': form}) 
+    
     else:
         form = CourseForm()
     return render(request, 'course_form.html', {'form': form})
@@ -41,11 +48,14 @@ def section_form_view(request):
         form = SectionForm(request.POST)
         if form.is_valid():
             form.save()
-            return HttpResponse('Section Saved!')
-
+            return render(request, 'section_form.html', {'form': form, 'saved': True})
+        else:
+           return render(request, 'section_form.html', {'form': form}) 
+    
     else:
         form = SectionForm()
     return render(request, 'section_form.html', {'form': form})
+
 
 
 def subject_form_view(request):
