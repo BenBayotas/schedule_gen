@@ -6,6 +6,12 @@ from .forms import *
 
 # Create your views here.
 
+def home(request):
+    return render(request, 'home.html')
+
+
+
+
 def department_form_view(request):
     if request.method == 'POST':
         form = DepartmentForm(request.POST)
@@ -15,7 +21,7 @@ def department_form_view(request):
 
     else:
         form = DepartmentForm()
-    return render(request, 'form_partial.html', {'form': form})
+    return render(request, 'department_form.html', {'form': form})
 
 
 def course_form_view(request):
@@ -27,7 +33,7 @@ def course_form_view(request):
 
     else:
         form = CourseForm()
-    return render(request, 'form_partial.html', {'form': form})
+    return render(request, 'course_form.html', {'form': form})
 
 
 def section_form_view(request):
@@ -39,7 +45,7 @@ def section_form_view(request):
 
     else:
         form = SectionForm()
-    return render(request, 'form_partial.html', {'form': form})
+    return render(request, 'section_form.html', {'form': form})
 
 
 def subject_form_view(request):
@@ -51,7 +57,7 @@ def subject_form_view(request):
 
     else:
         form = SubjectForm()
-    return render(request, 'form_partial.html', {'form': form})
+    return render(request, 'subject_form.html', {'form': form})
 
 
 def room_form_view(request):
@@ -62,7 +68,7 @@ def room_form_view(request):
             return HttpResponse('Room Saved!')
     else:
         form = RoomForm()
-    return render(request, 'form_partial.html', {'form': form})       
+    return render(request, 'room_form.html', {'form': form})       
 
            
         

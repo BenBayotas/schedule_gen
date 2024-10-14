@@ -1,0 +1,35 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
+        <script src="https://unpkg.com/htmx.org@1.7.0"></script>
+        <title>Section Form</title>
+</head>
+<body>
+
+        <a href="{% url 'home' %}"> HOME </a>
+
+        <main class="containter">
+
+                <form method="POST" hx-post=" {% url 'section_form' %}" hx-target="#form-container" hx-swap="outerHTML">
+                        {% csrf_token %}
+                        {{ form.as_p }}
+                        <button type="submit"> Save Section </button>
+                </form>
+                
+                
+        </main>
+        
+        
+</body>
+</html>
+
+
+
+
+
+
+

@@ -40,7 +40,7 @@ LOCATION = (
 
    
 class Department(models.Model):
-    dept_id = models.CharField(max_length=10, primary_key=True)
+    dept_id = models.CharField(max_length=10, unique=True)
     department_name = models.CharField(max_length=100)
 
 
@@ -49,7 +49,7 @@ class Department(models.Model):
     
 
 class Course(models.Model):
-    course_id = models.CharField(max_length=20, primary_key=True)
+    course_id = models.CharField(max_length=20, unique=True)
     course_name = models.CharField(max_length=100)
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     
@@ -59,7 +59,7 @@ class Course(models.Model):
     
 
 class Section(models.Model):
-    section_id = models.CharField(max_length=10, primary_key=True)
+    section_id = models.CharField(max_length=10, unique=True)
     section_name = models.CharField(max_length=10)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     year_level = models.IntegerField(choices=YEAR, null=True)
@@ -70,12 +70,12 @@ class Section(models.Model):
 
 
 class Room(models.Model):
-    room_id = models.CharField(max_length=15, primary_key=True)
+    room_id = models.CharField(max_length=15, unique=True)
     room_name = models.CharField(max_length=64, null=True, blank=True)
-    room_floor = models.IntegerField(max_length=4)
-    room_building = models.CharField(max=20, choices=LOCATION)
+    room_floor = models.IntegerField()
+    room_building = models.CharField(max_length=20, choices=LOCATION)
     is_laboratory = models.BooleanField(null=True, blank=True)
-    department_priority = models.ManyToManyField(Department, null=True, blank=True)
+    department_priority = models.ManyToManyField(Department, blank=True)
     
     
     def __str__(self):
@@ -84,7 +84,7 @@ class Room(models.Model):
 
 class Subject(models.Model):
 
-    subject_id = models.CharField(max_length=15, primary_key=True)
+    subject_id = models.CharField(max_length=15)
     subject_name = models.CharField(max_length=100, null=True)
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
@@ -106,14 +106,14 @@ class Subject(models.Model):
 
 
 class Instructor(models.Model):
-    id = models.IntegerField(max_length=20, primary_key=True)
+    instructor_id = models.IntegerField()
     name = models.CharField(max_length=100, null=True)
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     expertise = models.ManyToManyField(Subject)  # Instructors can have expertise in many subjects
     
     
     def __str__(self):
-        return f"{self.id} ({self.name})"
+        return f"{self.instructor_id} ({self.name})"
 
 
 

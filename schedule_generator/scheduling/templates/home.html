@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
+    <title>Schedule Generator</title>
+</head>
+<body>
+
+    <main class="container">
+        <h1>Welcome to the Schedule Generator</h1>
+        <p>Please select an option below:</p>
+        <ul>
+            <li><a href="{% url 'department_form' %}">Add Department</a></li>
+            <li><a href="{% url 'course_form' %}">Add Course</a></li>
+            <li><a href="{% url 'section_form' %}">Add Section</a></li>
+            <li><a href="{% url 'subject_form' %}">Add Subject</a></li>
+            <li><a href="{% url 'room_form' %}">Add Room</a></li>
+        </ul>
+
+        <button> Generate Schedule </button>
+    </main>
+    
+</body>
+</html>
