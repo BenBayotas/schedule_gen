@@ -63,8 +63,9 @@ def subject_form_view(request):
         form = SubjectForm(request.POST)
         if form.is_valid():
             form.save()
-            return HttpResponse('Subject Saved!')
-
+            return render(request, 'subject_form.html', {'form': form, 'saved':True})
+        else:
+            return render(request, 'subject_form.html', {'form': form})
     else:
         form = SubjectForm()
     return render(request, 'subject_form.html', {'form': form})
@@ -75,7 +76,9 @@ def room_form_view(request):
         form = RoomForm(request.POST)
         if form.is_valid():
             form.save()
-            return HttpResponse('Room Saved!')
+            return render(request, 'room_form.html', {'form': form, 'saved': True})
+        else:
+            return render(request, 'room_form.html', {'form': form})
     else:
         form = RoomForm()
     return render(request, 'room_form.html', {'form': form})       

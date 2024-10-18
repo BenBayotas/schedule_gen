@@ -39,15 +39,16 @@ def initialize_population(population_size):
                             timeslot = subject.timeslot
 
                             if subject.requires_laboratory:
-                                 
-                                 department_rooms = Room.objects.filter(department=department, is_laboratory=True)
+                                 department_rooms = Room.objects.filter(department_priority=department, is_laboratory=True)
                                  available_rooms = department_rooms if department_rooms.exists() else Room.objects.filter(is_laboratory=True)
                         
-                            else:
-                                 department_rooms = Room.objects.filter(department=department, is_laboratory=False)
+                            elif not subject.requires_laboratory:
+                                 department_rooms = Room.objects.filter(department_priority=department, is_laboratory=False)
                                  available_rooms = department_rooms if department_rooms.exists() else Room.objects.filter(is_laboratory=False)
-                            
+                            else:
+                                 available_rooms = Room.objects.all()
 
+                                
                             room_found = False
                             max_attempts = 10
 

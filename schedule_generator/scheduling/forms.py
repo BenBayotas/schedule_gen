@@ -24,7 +24,7 @@ class SubjectForm(forms.ModelForm):
         model = Subject
         fields = ['subject_id', 'subject_name', 'department', 
                   'course','section', 'year_level', 'requires_laboratory', 
-                  'subject_type', 'days', 'timeslot', 'weekly_duration'
+                  'semester', 'days', 'timeslot'
                   ]    
 
 
