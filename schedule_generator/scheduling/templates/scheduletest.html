@@ -1,0 +1,18 @@
+<table>
+    <tr>
+        <th>Room</th>
+        <th>Section</th>
+        <th>Subject</th>
+        <th>Timeslot</th>
+        <th>Days</th>
+    </tr>
+    {% for session in schedule %}
+    <tr>
+        <td>{{ session.room }}</td>
+        <td>{{ session.section }}</td>
+        <td>{{ session.subject }}</td>
+        <td>{{ session.timeslot }}</td>
+        <td>{{ session.days }}</td>
+    </tr>
+    {% endfor %}
+</table>

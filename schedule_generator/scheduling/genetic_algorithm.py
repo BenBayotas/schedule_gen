@@ -39,12 +39,12 @@ def initialize_population(population_size):
                             timeslot = subject.timeslot
 
                             if subject.requires_laboratory:
-                                 department_rooms = Room.objects.filter(department_priority=department, is_laboratory=True)
-                                 available_rooms = department_rooms if department_rooms.exists() else Room.objects.filter(is_laboratory=True)
-                        
+                                   department_rooms = Room.objects.filter(department_priority=department, is_laboratory=True)
+                                   available_rooms = department_rooms if department_rooms.exists() else Room.objects.filter(is_laboratory=True)
+                                   
                             elif not subject.requires_laboratory:
-                                 department_rooms = Room.objects.filter(department_priority=department, is_laboratory=False)
-                                 available_rooms = department_rooms if department_rooms.exists() else Room.objects.filter(is_laboratory=False)
+                                   department_rooms = Room.objects.filter(department_priority=department, is_laboratory=False)
+                                   available_rooms = department_rooms if department_rooms.exists() else Room.objects.filter(is_laboratory=False)
                             else:
                                  available_rooms = Room.objects.all()
 
@@ -52,7 +52,7 @@ def initialize_population(population_size):
                             room_found = False
                             max_attempts = 10
 
-                            for _ in max_attempts:
+                            for _ in range(max_attempts):
                                 room = random.choice(available_rooms)
 
                                 if (section, subject, timeslot) not in room_timeslot_occupancy[room]:
@@ -64,11 +64,11 @@ def initialize_population(population_size):
                                                 'subject': subject,
                                                 'room': room,
                                                 'days': days,
-                                                'timeslot': timeslot,
+                                                'timeslot': timeslot, 
                                             }
                                             individual_schedule.append(session)
 
-                                            room_timeslot_occupancy[room].append(section, subject, timeslot)
+                                            room_timeslot_occupancy[room].append((section, subject, timeslot))
                                            
                                             room_found = True
                                             break
@@ -91,14 +91,14 @@ def fitness(individual_schedule):
 
         section = session['section']
         timeslot = session['timeslot']
-        days = session['says']
+        days = session['days']
         room = session['room']
         
         
         if (timeslot, days) in room_timeslot_occupancy[room]:
             fitness_score -= 10
         else:
-            room_timeslot_occupancy[room].append(timeslot, days)
+            room_timeslot_occupancy[room].append((timeslot, days))
             fitness_score += 5
 
     return fitness_score
@@ -152,13 +152,14 @@ class GeneticAlgorithm:
                population_with_fitness = [(individual, fitness(individual)) for individual in population]  
                population_with_fitness.sort(key=lambda x: x[1], reverse=True)   
 
-               sorted_population = [individual for individual, score, in population_with_fitness]
+               sorted_population = [individual for individual, _ in population_with_fitness]
 
                new_population = []
 
                while len(new_population) < self.population_size:
                     
-                    parents = selection(sorted_population)
+                    #sorted_population = [individual for individual, _ in population_with_fitness]
+                    parents = selection(sorted_population, [score for _, score in population_with_fitness])
                     offspring1, offspring2 = crossover(parents[0], parents[1])
 
                     offspring1 = mutate(offspring1, self.mutation_rate)
@@ -169,7 +170,10 @@ class GeneticAlgorithm:
                population = new_population      
           
           best_individual = sorted_population[0]
+     
           return best_individual
+
+          
           
           
 

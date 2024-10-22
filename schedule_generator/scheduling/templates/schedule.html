@@ -1,54 +1,141 @@
+<!-- templates/schedule.html -->
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Schedule Generator</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <meta charset="UTF-8">
+    <title>Schedule</title>
+    <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@1.5.7/css/pico.min.css">
+    <style>
+        table {
+            width: 100%;
+        }
+        th, td {
+            padding: 5px;
+            text-align: center;
+            border: 1px solid #ccc;
+        }
+    </style>
 </head>
 <body>
-    <h1>Schedule Generator</h1>
-    <button id="generate-btn">Generate Schedule</button>
-    <div id="schedule-table"></div>
+    <h1>Class Schedule</h1>
+    <button id="generate-schedule">Generate Schedule</button>
+    <table id="schedule-table" hidden>
+        <thead>
+            <tr id="rooms-header">
+                <th>Time</th>
+            </tr>
+        </thead>
+        <tbody id="schedule-body"></tbody>
+    </table>
 
-    <script type="text/javascript">
-        $(document).ready(function() {
-            $('#generate-btn').click(function() {
-                $.ajax({
-                    type: 'POST',
-                    url: '',
-                    data: {
-                        csrfmiddlewaretoken: '{{ csrf_token }}'
-                    },
-                    success: function(response) {
-                        displaySchedule(response.schedule);
-                    },
-                    error: function() {
-                        alert('Error generating schedule.');
-                    }
-                });
-            });
+    <script>
+        document.getElementById("generate-schedule").addEventListener("click", function () {
+            fetch("{% url 'schedule_view' %}", {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({})
+            })
+            .then(response => response.json())
+            .then(data => renderTable(data))
+            .catch(error => console.error('Error:', error));
         });
 
-        function displaySchedule(schedule) {
-            var tableHtml = '<table border="1"><tr>';
+        function renderTable(data) {
+            const roomsHeader = document.getElementById("rooms-header");
+            const scheduleBody = document.getElementById("schedule-body");
+            scheduleBody.innerHTML = '';  // Clear any existing data
 
-            // Get room headers
-            schedule[0].forEach(function(session) {
-                tableHtml += '<th>' + session.room.name + '</th>';
+            // Get unique room names and time slots from the data
+            const rooms = Object.keys(data);
+            const timeSlots = generateTimeSlots("07:00AM", "09:00PM", 30);
+
+            // Create the room headers dynamically
+            rooms.forEach(room => {
+                const th = document.createElement("th");
+                th.textContent = room;
+                roomsHeader.appendChild(th);
             });
-            tableHtml += '</tr>';
 
-            // Get rows for timeslots
-            schedule.forEach(function(row) {
-                tableHtml += '<tr>';
-                row.forEach(function(session) {
-                    tableHtml += '<td>' + session.subject.name + ' (' + session.instructor.name + ')</td>';
+            // Create the rows for time slots
+            timeSlots.forEach(time => {
+                const row = document.createElement("tr");
+                const timeCell = document.createElement("td");
+                timeCell.textContent = time;
+                row.appendChild(timeCell);
+
+                rooms.forEach(room => {
+                    const cell = document.createElement("td");
+                    const sessions = data[room];
+
+                    // Check if a session occupies this time slot
+                    for (const [timeRange, session] of Object.entries(sessions)) {
+                        const [startTime, endTime] = timeRange;
+                        if (isTimeWithinRange(time, startTime, endTime)) {
+                            cell.textContent = `${session.subject.name} - ${session.section.name}`;
+                            cell.colSpan = calculateColSpan(startTime, endTime, 30);
+                            cell.style.backgroundColor = "#f0f0f0";
+                            row.appendChild(cell);
+                        } else {
+                            row.appendChild(cell);
+                        }
+                    }
                 });
-                tableHtml += '</tr>';
+                scheduleBody.appendChild(row);
             });
 
-            tableHtml += '</table>';
-            $('#schedule-table').html(tableHtml);
+            // Show the table
+            document.getElementById("schedule-table").hidden = false;
+        }
+
+        // Helper function to generate time slots
+        function generateTimeSlots(startTime, endTime, intervalMinutes) {
+            const times = [];
+            let currentTime = parseTime(startTime);
+            const end = parseTime(endTime);
+
+            while (currentTime <= end) {
+                times.push(formatTime(currentTime));
+                currentTime.setMinutes(currentTime.getMinutes() + intervalMinutes);
+            }
+
+            return times;
+        }
+
+        // Helper function to parse time
+        function parseTime(timeStr) {
+            const [time, modifier] = timeStr.split(/(AM|PM)/i);
+            const [hours, minutes] = time.split(":").map(Number);
+            const date = new Date();
+            date.setHours(modifier.toUpperCase() === "PM" ? hours + 12 : hours);
+            date.setMinutes(minutes);
+            return date;
+        }
+
+        // Helper function to format time
+        function formatTime(date) {
+            const hours = date.getHours() % 12 || 12;
+            const minutes = date.getMinutes().toString().padStart(2, "0");
+            const modifier = date.getHours() >= 12 ? "PM" : "AM";
+            return `${hours}:${minutes}${modifier}`;
+        }
+
+        // Helper function to check if a time falls within a time range
+        function isTimeWithinRange(time, startTime, endTime) {
+            const parsedTime = parseTime(time);
+            return parsedTime >= parseTime(startTime) && parsedTime < parseTime(endTime);
+        }
+
+        // Helper function to calculate colspan based on duration
+        function calculateColSpan(startTime, endTime, intervalMinutes) {
+            const start = parseTime(startTime);
+            const end = parseTime(endTime);
+            const diff = (end - start) / (intervalMinutes * 60000); // 60000 ms in a minute
+            return Math.ceil(diff);
         }
     </script>
 </body>
 </html>
+

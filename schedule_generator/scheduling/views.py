@@ -10,8 +10,6 @@ def home(request):
     return render(request, 'home.html')
 
 
-
-
 def department_form_view(request):
     if request.method == 'POST':
         form = DepartmentForm(request.POST)
@@ -85,4 +83,43 @@ def room_form_view(request):
 
            
         
+def schedule_view(request):
 
+    best_schedule = None
+
+    ga = GeneticAlgorithm(population_size=100)
+    best_schedule = ga.run()
+
+    context = {
+        'schedule': best_schedule
+    }
+
+    return render(request, 'scheduletest.html', context)
+
+
+
+    '''
+        if request.method == "POST":
+
+        ga = GeneticAlgorithm(population_size=100)
+        best_schedule = ga.run()
+
+        schedule_data = {}
+        for room in best_schedule["rooms"]:
+            schedule_data[room] = {}
+            for session in best_schedule["sessions"]:
+
+                room = session["room"]
+                timeslot = session["timeslot"]
+
+                if session["room"] == room:
+                    start_time = session["timeslot"].start_time.strftime("%I:%M %p")
+                    end_time = session["timeslot"].end_time.strftime("%I:%M %p")
+                    schedule_data[room][(start_time, end_time)] = session
+
+        return JsonResponse(schedule_data)
+    return render(request, 'schedule.html')
+    
+    
+    '''
+    
