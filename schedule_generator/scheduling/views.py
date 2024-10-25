@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponse
-from .genetic_algorithm import GeneticAlgorithm
+from .genetic_algorithm_copy import GeneticAlgorithm
 from .forms import *
 
 

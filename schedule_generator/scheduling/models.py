@@ -44,6 +44,33 @@ LOCATION = (
     ('CB MAIN', 'CB MAIN'),
     ('CBS SOUTH', 'CBS SOUTH'),
     ('CBE EAST', 'CBE EAST'),
+
+)
+
+ROOM_TYPES = (
+    ('Lecture Room', 'Lecture Room'),
+    ('PE Hall', 'PE Hall'),
+    ('Gym Hall', 'Gym Hall'),
+    ('Civil Engineering Lab', 'Civil Engineering Lab'),
+    ('JEEP Start', 'JEEP Start'),
+    ('JEEP Accelerate', 'JEEP Accelerate'),
+    ('Nursing Lab', 'Nursing Lab'),
+    ('Human Anatomy Simulation Center', 'Human Anatomy Simulation Center'),
+    ('Computer Laboratory', 'Computer Laboratory'),
+    ('EIRC', 'EIRC'),
+    ('DSAC', 'DSAC'),
+    ('TBI MOESIS', 'TBI MOESIS'),
+    ('ETP Drawing Room', 'ETP Drawing Room'),
+    ('Chemistry Lab', 'Chemistry Lab'),
+    ('Biology Room', 'Biology Room'),
+    ('Criminology Lab', 'Criminology Lab'),
+    ('Criminology Lecture Room', 'Criminology Lecture Room'),
+    ('Hotel de Saturnino', 'Hotel de Saturnino'),
+    ('Physics Lab', 'Physics Lab'),
+    ('Kitchen', 'Kitchen'),
+    ('Drawing Room', 'Drawing Room'),
+    
+
 )
 
 
@@ -124,6 +151,7 @@ class Subject(models.Model):
     days = models.CharField(max_length=12, choices=DAYS_OF_WEEK)
     timeslot = models.CharField(max_length=50, default="7:30AM - 9:00AM")
     
+    room_preference = models.CharField(max_length=64,choices=ROOM_TYPES, null=True, blank=True, default='Lecture Room')
     
     def __str__(self):
         return f"[{self.subject_id}] {self.subject_name}| {self.course.course_id} {self.section.section_name} {self.year_level} | {self.days} {self.timeslot}"    
@@ -139,6 +167,9 @@ class Instructor(models.Model):
     
     def __str__(self):
         return f"{self.instructor_id} ({self.name})"
+    
+
+
 
 
 

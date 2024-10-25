@@ -13,70 +13,60 @@ def initialize_population(population_size):
     instructor_subject_count = defaultdict(int)
     instructor_daily_sessions = defaultdict(lambda: defaultdict(int))
     '''
-    
 
-    departments = Department.objects.all()
+    sections = Section.objects.all()
 
     for _ in range(population_size):
-        
         individual_schedule = []
         
-        for department in departments:
+        for section in sections:
+               subjects = Subject.objects.filter(section=section)
+               
+               for subject in subjects:
+                    days = subject.days
+                    timeslot = subject.timeslot
+                    room_preference = subject.room_preference
 
-            #courses = department.course_set.all()
-            courses = Course.objects.filter(department=department)
+                    if subject.requires_laboratory:
+                         preferred_rooms = Room.objects.filter(room_name=str(room_preference), is_laboratory=True)
+                         if preferred_rooms.exists():
+                              available_rooms = preferred_rooms
+                         else:
+                              # Fallback to any available laboratory if none matches the preference
+                              available_rooms = Room.objects.filter(is_laboratory=True)
+                    else:
+                         # For non-laboratory subjects, filter by room preference but exclude labs
+                         preferred_rooms = Room.objects.filter(room_name=str(room_preference), is_laboratory=False)
+                         if preferred_rooms.exists():
+                              available_rooms = preferred_rooms
+                         else:
+                              # Fallback to any available non-laboratory room if none matches the preference
+                              available_rooms = Room.objects.filter(is_laboratory=False)
 
+                    room_found = False
+                    max_attempts = 20
 
-            for course in courses:
-                for year_level in range(1, 5):
-                    sections = Section.objects.filter(course=course, year_level=year_level)
+                    for _ in range(max_attempts):
+                         room = random.choice(available_rooms)
 
-                    for section in sections:
-                        subjects = Subject.objects.filter(course=course, section=section, year_level=year_level)
-                        for subject in subjects:
+                         if (section, subject, timeslot, days) not in room_timeslot_occupancy[room]:
+                              session = {
+                                   'section': section,
+                                   'subject': subject,
+                                   'room': room,
+                                   'days': days,
+                                   'timeslot': timeslot, 
+                                   }
+                              individual_schedule.append(session)
 
-                            days = subject.days
-                            timeslot = subject.timeslot
-
-                            if subject.requires_laboratory:
-                                   department_rooms = Room.objects.filter(department_priority=department, is_laboratory=True)
-                                   available_rooms = department_rooms if department_rooms.exists() else Room.objects.filter(is_laboratory=True)
-                                   
-                            elif not subject.requires_laboratory:
-                                   department_rooms = Room.objects.filter(department_priority=department, is_laboratory=False)
-                                   available_rooms = department_rooms if department_rooms.exists() else Room.objects.filter(is_laboratory=False)
-                            else:
-                                 available_rooms = Room.objects.all()
-
-                    
-                            room_found = False
-                            max_attempts = 10
-
-                            for _ in range(max_attempts):
-                                room = random.choice(available_rooms)
-
-                                if (section, subject, timeslot) not in room_timeslot_occupancy[room]:
-                                            session = {
-                                                'department': department,
-                                                'course': course,
-                                                'section': section,
-                                                'year_level': year_level,
-                                                'subject': subject,
-                                                'room': room,
-                                                'days': days,
-                                                'timeslot': timeslot, 
-                                            }
-                                            individual_schedule.append(session)
-
-                                            room_timeslot_occupancy[room].append((section, subject, timeslot))
+                              room_timeslot_occupancy[room].append((section, subject, timeslot, days))
                                            
-                                            room_found = True
-                                            break
-                            if not room_found:
-                                continue
+                              room_found = True
+                              break
+                         if not room_found:
+                              continue
 
-                population.append(individual_schedule)
-
+               population.append(individual_schedule)
     return population
 
 
@@ -89,7 +79,7 @@ def fitness(individual_schedule):
 
     for session in individual_schedule:
 
-        section = session['section']
+        subject = session['subject']
         timeslot = session['timeslot']
         days = session['days']
         room = session['room']
