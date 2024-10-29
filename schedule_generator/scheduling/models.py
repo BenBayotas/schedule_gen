@@ -128,12 +128,36 @@ class Room(models.Model):
             self.priority = ', '.join(course.course_name for course in self.courses.all())
         super().save(*args, **kwargs)
 
-    
     """
-    
-    
+
     def __str__(self):
-        return f"{self.room_id}" 
+        return f"{self.room_id} {self.room_name}"
+    
+
+class LectureRoom(models.Model):
+    room_id = models.CharField(max_length=15, unique=True)
+    room_name = models.CharField(max_length=64, default='Lecture Room')
+
+    def __str__(self):
+        return f"{self.room_id} {self.room_name}"
+
+
+class Laboratories(models.Model):
+    lab_id = models.CharField(max_length=15, unique=True)
+    lab_name = models.CharField(max_length=64, default='Laboratory')
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.lab_id} {self.lab_name} {self.department.dept_id}"
+    
+
+class PEGymHall(models.Model):
+    hall_id = models.CharField(max_length=15, unique=True)
+    hall_name = models.CharField(max_length=64, default= 'PE Hall')
+
+    def __str__(self):
+        return f"{self.hall_id} {self.hall_name}"
+
 
     
 class Subject(models.Model):
@@ -156,6 +180,24 @@ class Subject(models.Model):
     def __str__(self):
         return f"[{self.subject_id}] {self.subject_name}| {self.course.course_id} {self.section.section_name} {self.year_level} | {self.days} {self.timeslot}"    
 
+
+class Timeslot(models.Model):
+    days = models.CharField(max_length=20)
+    timeslot = models.CharField(max_length=34)
+
+    def __str__(self):
+        return f"[{self.days}] {self.timeslot}" 
+
+
+class SubjectSession(models.Model):
+    subject_id = models.CharField(max_length=20)
+    subject_name = models.CharField(max_length=64)
+    sections = models.ManyToManyField(Section)
+    rooms = models.ManyToManyField(Room)
+    timeslot = models.ManyToManyField(Timeslot)
+
+    def __str__(self):
+        return f"[{self.subject_id}] {self.subject_name}"
 
 
 class Instructor(models.Model):

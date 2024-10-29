@@ -1,6 +1,6 @@
 from collections import defaultdict
 import random
-from .models import Department, Course, Section, Subject, Room, LectureRoom, Laboratories, PEGymHall, Instructor
+from .models import Department, Course, Section, Subject, Room, Instructor
 
 
 def initialize_population(population_size):
@@ -21,24 +21,40 @@ def initialize_population(population_size):
         
         for section in sections:
                subjects = Subject.objects.filter(section=section)
-               
+
                for subject in subjects:
-                    department = subject.department
                     days = subject.days
                     timeslot = subject.timeslot
                     room_preference = subject.room_preference
 
                     # Default to an empty QuerySet in case subject.requires_laboratory is False
-                    
-                    if subject.requires_laboratory == False or room_preference == "Lecture Room":
-                         available_rooms = LectureRoom.objects.all()
+                    available_rooms = Room.objects.none()
 
-                    elif room_preference == "PE Hall" or "Gym Hall":
-                         available_rooms = PEGymHall.objects.all()
+                    if subject.requires_laboratory:
+                         room_preference = str(room_preference).strip()
+                         preferred_rooms = Room.objects.filter(room_name__iexact=room_preference, is_laboratory=True)
 
-                    elif subject.requires_laboratory:
-                         available_rooms = Laboratories.objects.filter(department=department)
-                    
+                         if preferred_rooms.exists():
+                              available_rooms = preferred_rooms
+
+                         else:
+                              available_rooms = Room.objects.filter(room_name__icontains=room_preference, is_laboratory=True)
+
+                              if not available_rooms.exists():
+                                   available_rooms = Room.objects.filter(is_laboratory=True)
+
+                    else:
+                         room_preference = str(room_preference).strip()
+                         preferred_rooms = Room.objects.filter(room_name__iexact=room_preference, is_laboratory=False)
+
+                         if preferred_rooms.exists():
+                              available_rooms = preferred_rooms
+
+                         else:
+                              available_rooms = Room.objects.filter(room_name__icontains=room_preference, is_laboratory=False)
+
+                              if not available_rooms.exists():
+                                   available_rooms = Room.objects.filter(is_laboratory=False)
 
 
 
@@ -48,17 +64,19 @@ def initialize_population(population_size):
                     for _ in range(max_attempts):
                          room = random.choice(available_rooms)
 
-                         if (subject, timeslot, days) not in session_occupancy[room]:
+                         if (timeslot, days) not in session_occupancy[room]:
                               session = {
                                    'section': section,
                                    'subject': subject,
                                    'room': room,
                                    'days': days,
-                                   'timeslot': timeslot, 
+                                   'timeslot': timeslot,
+                                   'preferred_room': subject.room_preference 
+                              
                                    }
                               individual_schedule.append(session)
 
-                              session_occupancy[room].append((subject, timeslot, days))
+                              session_occupancy[room].append((timeslot, days))
                                            
                               room_found = True
                               break
@@ -85,10 +103,10 @@ def fitness(individual_schedule):
         room = session['room']
         
         
-        if (subject, timeslot, days) in session_occupancy[room]:
+        if (section, subject, room, days) in session_occupancy[timeslot]:
             fitness_score -= 10
         else:
-            session_occupancy[room].append((subject, timeslot, days))
+            session_occupancy[timeslot].append((section, subject, room, days))
             fitness_score += 5
 
     return fitness_score
@@ -109,7 +127,7 @@ def crossover(parent1, parent2):
      return child1, child2
 
 
-def mutate(individual, mutation_rate= 0.1):
+def mutate(individual, mutation_rate= 0.01):
      
      if random.random() < mutation_rate:
           index = random.randint(0, len(individual) - 1)
@@ -127,9 +145,9 @@ def mutate(individual, mutation_rate= 0.1):
      return individual 
 
 
-class GeneticAlgo:
+class GeneticAlgorithm:
      
-     def __init__(self, population_size=100, generations=50, mutation_rate=0.1):
+     def __init__(self, population_size=100, generations=50, mutation_rate=0.01):
           self.population_size = population_size
           self.generations = generations
           self.mutation_rate = mutation_rate
@@ -137,7 +155,7 @@ class GeneticAlgo:
      def run(self):
           population = initialize_population(self.population_size)
 
-          for generation in range(self.generations):
+          for _ in range(self.generations):
 
                population_with_fitness = [(individual, fitness(individual)) for individual in population]  
                population_with_fitness.sort(key=lambda x: x[1], reverse=True)   
@@ -162,11 +180,6 @@ class GeneticAlgo:
           best_individual = sorted_population[0]
      
           return best_individual
-
-          
-          
-
-
 
           
           

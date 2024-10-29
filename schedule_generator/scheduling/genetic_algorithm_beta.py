@@ -55,7 +55,7 @@ def initialize_population(population_size):
                             for _ in range(max_attempts):
                                 room = random.choice(available_rooms)
 
-                                if (section, subject, timeslot) not in room_timeslot_occupancy[room]:
+                                if (timeslot, days) not in room_timeslot_occupancy[room]:
                                             session = {
                                                 'department': department,
                                                 'course': course,
@@ -68,7 +68,7 @@ def initialize_population(population_size):
                                             }
                                             individual_schedule.append(session)
 
-                                            room_timeslot_occupancy[room].append((section, subject, timeslot))
+                                            room_timeslot_occupancy[room].append((timeslot, days))
                                            
                                             room_found = True
                                             break
@@ -89,16 +89,17 @@ def fitness(individual_schedule):
 
     for session in individual_schedule:
 
+        subject = session['subject']  
         section = session['section']
         timeslot = session['timeslot']
         days = session['days']
         room = session['room']
         
         
-        if (timeslot, days) in room_timeslot_occupancy[room]:
+        if (section, subject, timeslot, days) in room_timeslot_occupancy[room]:
             fitness_score -= 10
         else:
-            room_timeslot_occupancy[room].append((timeslot, days))
+            room_timeslot_occupancy[room].append((section, subject, timeslot, days))
             fitness_score += 5
 
     return fitness_score
@@ -124,6 +125,7 @@ def mutate(individual, mutation_rate= 0.1):
      if random.random() < mutation_rate:
           index = random.randint(0, len(individual) - 1)
           session = individual[index]
+     
 
           if random.choice([True, False]):
                
