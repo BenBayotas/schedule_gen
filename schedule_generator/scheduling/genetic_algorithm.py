@@ -71,7 +71,9 @@ def initialize_population(population_size):
                                    'room': room,
                                    'days': days,
                                    'timeslot': timeslot,
-                                   'preferred_room': subject.room_preference 
+                                   'requires_laboratory': subject.requires_laboratory,
+                                   'preferred_room': subject.room_preference
+                                    
                               
                                    }
                               individual_schedule.append(session)
@@ -127,22 +129,50 @@ def crossover(parent1, parent2):
      return child1, child2
 
 
-def mutate(individual, mutation_rate= 0.01):
-     
-     if random.random() < mutation_rate:
-          index = random.randint(0, len(individual) - 1)
-          session = individual[index]
+def mutate(individual, mutation_rate=0.1):
+    if random.random() < mutation_rate:
+        # Select a random session to mutate in the individual schedule
+        index = random.randint(0, len(individual) - 1)
+        session = individual[index]
 
-          if random.choice([True, False]):
-               
-               available_rooms = Room.objects.all()
-               new_room = random.choice(available_rooms)
-               session['room'] = new_room
+        # Retrieve necessary attributes for mutation
+        subject = session['subject']
+        room_preference = getattr(subject, 'room_preference', "").strip() if subject else ""
+        
+        # Choose available rooms based on room preference and laboratory requirement
+        if subject.requires_laboratory:
+            preferred_rooms = Room.objects.filter(room_name__iexact=room_preference, is_laboratory=True)
+            
+            # If preferred rooms are available, use them; else, search more broadly
+            if preferred_rooms.exists():
+                available_rooms = preferred_rooms
+            else:
+                # Fallback to any lab room containing the preference or any lab if unavailable
+                available_rooms = Room.objects.filter(room_name__icontains=room_preference, is_laboratory=True)
+                if not available_rooms.exists():
+                    available_rooms = Room.objects.filter(is_laboratory=True)
+        
+        else:
+            preferred_rooms = Room.objects.filter(room_name__iexact=room_preference, is_laboratory=False)
+            
+            # If preferred non-lab rooms are available, use them; else, search more broadly
+            if preferred_rooms.exists():
+                available_rooms = preferred_rooms
+            else:
+                # Fallback to non-lab room containing the preference or any non-lab if unavailable
+                available_rooms = Room.objects.filter(room_name__icontains=room_preference, is_laboratory=False)
+                if not available_rooms.exists():
+                    available_rooms = Room.objects.filter(is_laboratory=False)
 
+        # Assign a new room based on available rooms
+        if available_rooms.exists():
+            new_room = random.choice(available_rooms)
+            session['room'] = new_room
 
-          individual[index] = session
+        # Update the mutated session back in the individual schedule
+        individual[index] = session
 
-     return individual 
+    return individual
 
 
 class GeneticAlgorithm:
