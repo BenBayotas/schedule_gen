@@ -173,7 +173,8 @@ class Subject(models.Model):
     year_level = models.IntegerField(choices=YEAR, null=True, blank=True)
 
     days = models.CharField(max_length=12, choices=DAYS_OF_WEEK)
-    timeslot = models.CharField(max_length=50, default="7:30AM - 9:00AM")
+    timeslot = models.CharField(max_length=50, default="07:30AM - 09:00AM")
+    starttime = models.CharField(max_length=24, null=True, blank=True)
     
     room_preference = models.CharField(max_length=64,choices=ROOM_TYPES, null=True, blank=True, default='Lecture Room')
     

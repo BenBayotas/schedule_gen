@@ -25,9 +25,10 @@ def initialize_population(population_size):
                for subject in subjects:
                     days = subject.days
                     timeslot = subject.timeslot
+                    starttime = subject.starttime
                     room_preference = subject.room_preference
 
-                    # Default to an empty QuerySet in case subject.requires_laboratory is False
+                    
                     available_rooms = Room.objects.none()
 
                     if subject.requires_laboratory:
@@ -64,7 +65,7 @@ def initialize_population(population_size):
                     for _ in range(max_attempts):
                          room = random.choice(available_rooms)
 
-                         if (timeslot, days) not in session_occupancy[room]:
+                         if (starttime, days) not in session_occupancy[room]:
                               session = {
                                    'section': section,
                                    'subject': subject,
@@ -78,7 +79,7 @@ def initialize_population(population_size):
                                    }
                               individual_schedule.append(session)
 
-                              session_occupancy[room].append((timeslot, days))
+                              session_occupancy[room].append((starttime, days))
                                            
                               room_found = True
                               break
@@ -133,23 +134,23 @@ def mutate(individual, mutation_rate=0.1):
 
      
     if random.random() < mutation_rate:
-        # Select a random session to mutate in the individual schedule
+        
         index = random.randint(0, len(individual) - 1)
         session = individual[index]
 
-        # Retrieve necessary attributes for mutation
+        
         subject = session['subject']
         room_preference = (subject.room_preference or "").strip()
         
-        # Choose available rooms based on room preference and laboratory requirement
+        
         if subject.requires_laboratory:
             preferred_rooms = Room.objects.filter(room_name__iexact=room_preference, is_laboratory=True)
             
-            # If preferred rooms are available, use them; else, search more broadly
+            
             if preferred_rooms.exists():
                 available_rooms = preferred_rooms
             else:
-                # Fallback to any lab room containing the preference or any lab if unavailable
+                
                 available_rooms = Room.objects.filter(room_name__icontains=room_preference, is_laboratory=True)
                 if not available_rooms.exists():
                     available_rooms = Room.objects.filter(is_laboratory=True)
@@ -157,21 +158,21 @@ def mutate(individual, mutation_rate=0.1):
         else:
             preferred_rooms = Room.objects.filter(room_name__iexact=room_preference, is_laboratory=False)
             
-            # If preferred non-lab rooms are available, use them; else, search more broadly
+            
             if preferred_rooms.exists():
                 available_rooms = preferred_rooms
             else:
-                # Fallback to non-lab room containing the preference or any non-lab if unavailable
+                
                 available_rooms = Room.objects.filter(room_name__icontains=room_preference, is_laboratory=False)
                 if not available_rooms.exists():
                     available_rooms = Room.objects.filter(is_laboratory=False)
 
-        # Assign a new room based on available rooms
+        
         if available_rooms.exists():
             new_room = random.choice(available_rooms)
             session['room'] = new_room
 
-        # Update the mutated session back in the individual schedule
+        
         individual[index] = session
 
     return individual
