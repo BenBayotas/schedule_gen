@@ -9,6 +9,6 @@ urlpatterns = [
   path('room-form/', views.room_form_view, name='room_form'),
   path('home/', views.home, name='home'),
   path('schedule_view/', views.schedule_view, name='schedule_view'),
-
-
+  path('generate_schedule/', views.generate_schedule, name='generate_schedule'),
+  path('schedule_grid/', views.display_schedule, name='display_schedule'),
 ]

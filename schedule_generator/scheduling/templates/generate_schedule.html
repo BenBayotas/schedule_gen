@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Generate Schedule</title>
+</head>
+<body>
+    <h1>Generate Schedule</h1>
+    <form method="post" action="{% url 'generate_schedule' %}">
+        {% csrf_token %}
+        <button type="submit">Generate Schedule</button>
+    </form>
+</body>
+</html>

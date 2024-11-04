@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -19,7 +19,7 @@
             <li><a href="{% url 'room_form' %}">Add Room</a></li>
         </ul>
 
-        <button> Generate Schedule </button>
+        <a href="{% url 'schedule_view' %}"><button> Generate Schedule </button></a> 
     </main>
     
 </body>
