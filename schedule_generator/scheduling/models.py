@@ -119,16 +119,6 @@ class Room(models.Model):
     # courses = models.ManyToManyField(Course, blank=True, related_name='rooms')
     # priority = models.CharField(max_length=100, default='all')
 
-    """
-    def save(self, *args, **kwargs):
-        # If no courses are assigned, set priority to "all"
-        if not self.courses.exists():
-            self.priority = "all"
-        else:
-            self.priority = ', '.join(course.course_name for course in self.courses.all())
-        super().save(*args, **kwargs)
-
-    """
 
     def __str__(self):
         return f"{self.room_id} {self.room_name}"

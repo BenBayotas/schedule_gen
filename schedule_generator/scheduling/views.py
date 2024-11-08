@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponse
-from .genetic_algorithm import GeneticAlgorithm
+from .genetic_algorithm_copy import GeneticAlgorithm
 from .forms import *
 from django.urls import reverse
 
@@ -129,9 +129,11 @@ def schedule_view(request):
         'schedule': formatted_schedule
     }
 
-    return render(request, 'scheduletest.html', context)
+    return render(request, 'schedule_view.html', context)
 
 
+
+# ==============================COMPONENT TESTING================================================
 
 def generate_schedule(request):
 
@@ -145,11 +147,11 @@ def generate_schedule(request):
         sessions = []
         for session in best_schedule:
             sessions.append({
-                'course': session['section'].course.name,
-                'section': session['section'].name,
+                'course': session['section'].course.course_name,
+                'section': session['section'].section_name,
                 'subject_id': session['subject'].subject_id,
-                'room': session['room'].room_name,
-                'days': session['days'],
+                'room': session['room'].room_id,
+                'days': session['days'].split('/'),
                 'start_time': session['timeslot'].split('-')[0].strip(),
                 'end_time': session['timeslot'].split('-')[1].strip()
             })
@@ -161,8 +163,29 @@ def generate_schedule(request):
     return render(request, 'generate_schedule.html')  # Button template
 
 
+
+
 def display_schedule(request):
     # Retrieve sessions from the session
     sessions = request.session.get('sessions', [])
+    
+    # Define the rooms, days, and timeslots for the grid
+    rooms = Room.objects.all().order_by('room_id')  # Make sure to order them properly
+    days = ['M', 'T', 'W', 'TH', 'F', 'S']  # Example days
+    timeslots = [
+        "07:00AM", "07:30AM", "08:00AM", "08:30AM", "09:00AM",
+        "09:30AM", "10:00AM", "10:30AM", "11:00AM", "11:30AM",
+        "12:00PM", "12:30PM", "01:00PM", "01:30PM", "02:00PM",
+        "02:30PM", "03:00PM", "03:30PM", "04:00PM", "04:30PM",
+        "05:00PM", "05:30PM", "06:00PM", "06:30PM", "07:00PM",
+        "07:30PM", "08:00PM", "08:30PM", "09:00PM", 
+    ]
 
-    return render(request, 'schedule_grid.html', {'sessions': sessions})
+    # Pass context to template
+    context = {
+        'sessions': sessions,
+        'rooms': rooms,
+        'days': days,
+        'timeslots': timeslots,
+    }
+    return render(request, 'schedule_grid.html', context)

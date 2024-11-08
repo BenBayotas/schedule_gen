@@ -1,17 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>Schedule Grid</title>
     <style>
-        /* Basic grid styling */
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 10px; border: 1px solid #ccc; text-align: center; }
-        .session-cell { background-color: #f0f0f0; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 10px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
-    <h1>Schedule Grid</h1>
-    <table id="schedule-table">
+    <h2>Schedule Grid</h2>
+    <table>
         <thead>
             <tr>
                 <th>Time / Room</th>
@@ -21,76 +27,77 @@
             </tr>
         </thead>
         <tbody>
-            {% for day in days %}
-                <tr><td colspan="{{ rooms|length|add:1 }}"><strong>{{ day }}</strong></td></tr>
-                {% for time in timeslots %}
-                    <tr>
-                        <td>{{ time }}</td>
-                        {% for room in rooms %}
-                            <td id="cell-{{ day }}-{{ time }}-{{ room.room_name }}" class="schedule-cell"></td>
-                        {% endfor %}
-                    </tr>
-                {% endfor %}
+            {% for time in timeslots %}
+                <tr>
+                    <td>{{ time }}</td>
+                    {% for room in rooms %}
+                        <td>
+                            {% for session in sessions %}
+                                {% if session.room == room.room_name %}
+                                    {% for day in session.days %}
+                                        {% if day == "M" %}  
+                                            {% if time >= session.start_time and time < session.end_time %}
+                                                <div>
+                                                    {{ session.course }} ({{ session.section }})<br>
+                                                    {{ day }} {{ session.start_time }} - {{ session.end_time }}
+                                                </div>
+                                            {% endif %}
+                                        {% endif %}
+
+                                        {% if day == "T" %}  <
+                                            {% if time >= session.start_time and time < session.end_time %}
+                                                <div>
+                                                    {{ session.course }} ({{ session.section }})<br>
+                                                    {{ day }} {{ session.start_time }} - {{ session.end_time }}
+                                                </div>
+                                            {% endif %}
+                                        {% endif %}
+
+
+                                        {% if day == "W" %}  
+                                            {% if time >= session.start_time and time < session.end_time %}
+                                                <div>
+                                                    {{ session.course }} ({{ session.section }})<br>
+                                                    {{ day }} {{ session.start_time }} - {{ session.end_time }}
+                                                </div>
+                                            {% endif %}
+                                        {% endif %}
+
+                                        {% if day == "TH" %}  
+                                            {% if time >= session.start_time and time < session.end_time %}
+                                                <div>
+                                                    {{ session.course }} ({{ session.section }})<br>
+                                                    {{ day }} {{ session.start_time }} - {{ session.end_time }}
+                                                </div>
+                                            {% endif %}
+                                        {% endif %}
+
+                                        {% if day == "F" %}  
+                                            {% if time >= session.start_time and time < session.end_time %}
+                                                <div>
+                                                    {{ session.course }} ({{ session.section }})<br>
+                                                    {{ day }} {{ session.start_time }} - {{ session.end_time }}
+                                                </div>
+                                            {% endif %}
+                                        {% endif %}
+
+
+                                        {% if day == "S" %}  
+                                            {% if time >= session.start_time and time < session.end_time %}
+                                                <div>
+                                                    {{ session.course }} ({{ session.section }})<br>
+                                                    {{ day }} {{ session.start_time }} - {{ session.end_time }}
+                                                </div>
+                                            {% endif %}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            {% endfor %}
+                        </td>
+                    {% endfor %}
+                </tr>
             {% endfor %}
         </tbody>
     </table>
-
-    <script>
-        // Fetch sessions data directly from Django template context and parse it as JSON
-        const sessionData = JSON.parse('{{ sessions|safe|escapejs }}');
-    
-        sessionData.forEach(session => {
-            const days = session.days.split('/');
-            days.forEach(day => {
-                const startTime = session.start_time;
-                const endTime = session.end_time;
-                const room = session.room;
-    
-                let currentTime = startTime;
-    
-                // Calculate session duration and fill each cell until end time
-                while (currentTime < endTime) {
-                    const cellId = `cell-${day}-${currentTime}-${room}`;
-                    const cell = document.getElementById(cellId);
-    
-                    if (cell) {
-                        cell.classList.add('session-cell');
-                        cell.innerHTML = `
-                            <strong>${session.course}</strong><br>
-                            ${session.section} <br>
-                            ${session.subject_id} <br>
-                            ${session.days}
-                        `;
-                    }
-                    currentTime = getNextTimeSlot(currentTime);  // Advance to the next timeslot
-                }
-            });
-        });
-    
-        // Helper function to get the next timeslot (increments by 30 mins)
-        function getNextTimeSlot(time) {
-            const [hour, minute, ampm] = time.match(/(\d+):(\d+)(AM|PM)/).slice(1);
-            let hourInt = parseInt(hour), minuteInt = parseInt(minute);
-    
-            minuteInt += 30;
-            if (minuteInt >= 60) {
-                hourInt += 1;
-                minuteInt = 0;
-            }
-    
-            if (hourInt === 12) {
-                if (ampm === "AM") {
-                    return `12:00PM`;
-                } else if (ampm === "PM") {
-                    return `12:00AM`;
-                }
-            } else if (hourInt > 12) {
-                hourInt -= 12;
-            }
-    
-            const nextTime = `${hourInt}:${minuteInt < 10 ? '0' + minuteInt : minuteInt}${ampm}`;
-            return nextTime;
-        }
-    </script>
 </body>
 </html>

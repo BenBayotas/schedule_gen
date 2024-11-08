@@ -130,6 +130,7 @@ def crossover(parent1, parent2):
 
 
 def mutate(individual, mutation_rate=0.01, session_occupancy=None):
+
     if session_occupancy is None:
         session_occupancy = defaultdict(list)
         
@@ -138,17 +139,14 @@ def mutate(individual, mutation_rate=0.01, session_occupancy=None):
         index = random.randint(0, len(individual) - 1)
         session = individual[index]
 
-       
         subject = session.get('subject')
         if subject is None:
             return individual  
-
         
         room_preference = (subject.room_preference or "").strip()
         days = session['days']
         timeslot = session['timeslot']
 
-        
         if subject.requires_laboratory:
             preferred_rooms = Room.objects.filter(room_name__iexact=room_preference, is_laboratory=True)
             if preferred_rooms.exists():
@@ -165,28 +163,23 @@ def mutate(individual, mutation_rate=0.01, session_occupancy=None):
                 available_rooms = Room.objects.filter(room_name__icontains=room_preference, is_laboratory=False)
                 if not available_rooms.exists():
                     available_rooms = Room.objects.filter(is_laboratory=False)
-
-        
+                    
         room_found = False
         max_attempts = 20
         for _ in range(max_attempts):
             new_room = random.choice(available_rooms)
-            
-           
             if (timeslot, days) not in session_occupancy[new_room]:
-                
                 session['room'] = new_room
                 room_found = True
-                
-               
                 session_occupancy[new_room].append((timeslot, days))
                 break
 
-        
         if room_found:
             individual[index] = session
 
     return individual
+
+
 
 
 class GeneticAlgorithm:

@@ -1,12 +1,42 @@
 from collections import defaultdict
 import random
+from datetime import datetime, timedelta
 from .models import Department, Course, Section, Subject, Room, Instructor
+
+
+def parse_timeslot(timeslot):
+     
+    start_str, end_str = timeslot.split(" - ")
+    start_time = datetime.strptime(start_str.strip(), "%I:%M%p").time()
+    end_time = datetime.strptime(end_str.strip(), "%I:%M%p").time()
+
+    return start_time, end_time
+
+
+def parse_days(days):
+     
+    return [day.strip() for day in days.split(" / ")]
+
+def has_conflict(existing_sessions, new_timeslot, new_days):
+     
+    new_start, new_end = parse_timeslot(new_timeslot)
+    new_days_set = set(parse_days(new_days))
+
+    for session in existing_sessions:
+        session_start, session_end = parse_timeslot(session['timeslot'])
+        session_days_set = set(parse_days(session['days']))
+
+        if new_days_set & session_days_set:
+             if (new_start < session_end and new_end > session_start):
+                  return True
+    return False    
+
+
 
 
 def initialize_population(population_size):
     
     population = []
-
     session_occupancy = defaultdict(list)
 
     '''
@@ -15,10 +45,10 @@ def initialize_population(population_size):
     '''
 
     sections = Section.objects.all()
-
     for _ in range(population_size):
+
         individual_schedule = []
-        
+
         for section in sections:
                subjects = Subject.objects.filter(section=section)
 
@@ -26,6 +56,7 @@ def initialize_population(population_size):
                     
                     days = subject.days
                     timeslot = subject.timeslot
+
                     starttime = subject.starttime
                     room_preference = subject.room_preference
 
@@ -52,35 +83,33 @@ def initialize_population(population_size):
                               if not available_rooms.exists():
                                    available_rooms = Room.objects.filter(is_laboratory=False)
 
+                    room_assigned = False
+                    
 
+                    for _ in range(20):
+                         new_room = random.choice(available_rooms)
 
-                    room_found = False
-                    max_attempts = 50
-
-                    for _ in range(max_attempts):
-                         room = random.choice(available_rooms)
-
-                         if (starttime, days) not in session_occupancy[room]:
+                         if not has_conflict(session_occupancy[new_room], timeslot, days):
+                              
                               session = {
                                    'section': section,
                                    'subject': subject,
-                                   'room': room,
+                                   'room': new_room,
                                    'days': days,
                                    'timeslot': timeslot,
                                    'starttime': starttime,
                                    'requires_laboratory': subject.requires_laboratory,
                                    'preferred_room': subject.room_preference
                                     
+                                }
                               
-                                   }
                               individual_schedule.append(session)
-
-                              session_occupancy[room].append((starttime, days))
-                                           
-                              room_found = True
+                              session_occupancy[new_room].append(session)       
+                              room_assigned = True
                               break
-                         if not room_found:
-                              continue
+                         
+                         if not room_assigned:
+                               print(f"Could not assign a room for {subject} without conflict.")
 
                population.append(individual_schedule)
     return population
@@ -127,10 +156,10 @@ def crossover(parent1, parent2):
      return child1, child2
 
 
-'''
 
 
 def mutate(individual, mutation_rate=0.01, session_occupancy=None):
+    
     if session_occupancy is None:
         session_occupancy = defaultdict(list)
         
@@ -146,11 +175,10 @@ def mutate(individual, mutation_rate=0.01, session_occupancy=None):
         room_preference = (subject.room_preference or "").strip()
         days = session['days']
         timeslot = session['timeslot']
-        
-        # Store the default room in case we need to revert
         default_room = session['room']
-
+        
         if subject.requires_laboratory:
+            room_preference = str(room_preference).strip()
             preferred_rooms = Room.objects.filter(room_name__iexact=room_preference, is_laboratory=True)
             if preferred_rooms.exists():
                 available_rooms = preferred_rooms
@@ -158,7 +186,9 @@ def mutate(individual, mutation_rate=0.01, session_occupancy=None):
                 available_rooms = Room.objects.filter(room_name__icontains=room_preference, is_laboratory=True)
                 if not available_rooms.exists():
                     available_rooms = Room.objects.filter(is_laboratory=True)
+
         else:
+            room_preference = str(room_preference).strip()
             preferred_rooms = Room.objects.filter(room_name__iexact=room_preference, is_laboratory=False)
             if preferred_rooms.exists():
                 available_rooms = preferred_rooms
@@ -166,28 +196,31 @@ def mutate(individual, mutation_rate=0.01, session_occupancy=None):
                 available_rooms = Room.objects.filter(room_name__icontains=room_preference, is_laboratory=False)
                 if not available_rooms.exists():
                     available_rooms = Room.objects.filter(is_laboratory=False)
-                    
+
+
         room_found = False
         max_attempts = 20
         for _ in range(max_attempts):
             new_room = random.choice(available_rooms)
-            if (timeslot, days) not in session_occupancy[new_room]:
+
+            if not has_conflict(session_occupancy[new_room], timeslot, days):
+
                 session['room'] = new_room
+                session_occupancy[new_room].append((session))
                 room_found = True
-                session_occupancy[new_room].append((timeslot, days))
                 break
 
-        # If no suitable room was found, revert to the default room
+       
         if not room_found:
-            session['room'] = default_room
-        else:
-            individual[index] = session  # Update only if mutation succeeded
+            session['room'] = default_room 
 
     return individual
 
-'''
 
- 
+
+
+''' 
+
 def mutate(individuals, mutation_rate):
 
     if random.random() < mutation_rate:
@@ -220,6 +253,9 @@ def mutate(individuals, mutation_rate):
         individuals[index] = session
 
     return individuals
+
+
+'''
 
 
 
