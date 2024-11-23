@@ -17,6 +17,8 @@ def parse_days(days):
      
     return [day.strip() for day in days.split(" / ")]
 
+
+
 def has_conflict(existing_sessions, new_timeslot, new_days):
      
     new_start, new_end = parse_timeslot(new_timeslot)
@@ -39,10 +41,7 @@ def initialize_population(population_size):
     population = []
     session_occupancy = defaultdict(list)
 
-    '''
-    instructor_subject_count = defaultdict(int)
-    instructor_daily_sessions = defaultdict(lambda: defaultdict(int))
-    '''
+
 
     sections = Section.objects.all()
     for _ in range(population_size):

@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponse
-from .genetic_algorithm_copy import GeneticAlgorithm
+from .genetic_algorithm import GeneticAlgorithm, calculate_rmse, calculate_accuracy, calculate_room_assignment_accuracy
 from .forms import *
 from django.urls import reverse
 
@@ -125,11 +125,77 @@ def schedule_view(request):
     formatted_schedule.sort(key=room_sort_key)
 
     
+    # Calculate evaluation metrics
+    rmse = calculate_rmse([best_schedule])
+    accuracy = calculate_accuracy([best_schedule])
+    room_assignment_accuracy = calculate_room_assignment_accuracy([best_schedule])
+
+    # Pass the schedule and evaluation results to the template
     context = {
-        'schedule': formatted_schedule
+        'schedule': formatted_schedule,
+        'rmse': rmse,
+        'accuracy': accuracy,
+        'room_assignment_accuracy': room_assignment_accuracy,
     }
 
     return render(request, 'schedule_view.html', context)
+
+
+
+
+
+
+def schedule_view_rmse(request):
+    # Initialize the genetic algorithm and get the best schedule
+    ga = GeneticAlgorithm(population_size=100)
+    best_schedule = ga.run()
+
+    # Format the schedule for display
+    formatted_schedule = []
+    for session in best_schedule:
+        if isinstance(session['timeslot'], str):
+            timeslot = session['timeslot']
+        else:
+            timeslot = f"{session['timeslot'].start_time.strftime('%I:%M %p')} - {session['timeslot'].end_time.strftime('%I:%M %p')}"
+        
+        formatted_schedule.append({
+            'room': session['room'].room_id,
+            'section': getattr(session['section'], 'name', session['section']),
+            'subject': getattr(session['subject'], 'subject_name', session['subject']),
+            'timeslot': timeslot,
+            'days': session['days']
+        })
+
+    # Sort the schedule based on room priority
+    def room_sort_key(session):
+        room = session['room']
+        if room.startswith("CB"):
+            return (0, room)
+        elif room.startswith("CBS"):
+            return (1, room)
+        elif room.startswith("CBE"):
+            return (2, room)
+        else:
+            return (3, room)
+    
+    formatted_schedule.sort(key=room_sort_key)
+
+    # Calculate evaluation metrics
+    rmse = calculate_rmse([best_schedule])
+    accuracy = calculate_accuracy([best_schedule])
+    room_assignment_accuracy = calculate_room_assignment_accuracy([best_schedule])
+
+    # Pass the schedule and evaluation results to the template
+    context = {
+        'schedule': formatted_schedule,
+        'rmse': rmse,
+        'accuracy': accuracy,
+        'room_assignment_accuracy': room_assignment_accuracy,
+    }
+
+    return render(request, 'schedule_view_rmse.html', context)
+
+
 
 
 

@@ -149,7 +149,6 @@ class PEGymHall(models.Model):
         return f"{self.hall_id} {self.hall_name}"
 
 
-    
 class Subject(models.Model):
 
     subject_id = models.CharField(max_length=15)
@@ -180,28 +179,78 @@ class Timeslot(models.Model):
         return f"[{self.days}] {self.timeslot}" 
 
 
-class SubjectSession(models.Model):
-    subject_id = models.CharField(max_length=20)
-    subject_name = models.CharField(max_length=64)
-    sections = models.ManyToManyField(Section)
-    rooms = models.ManyToManyField(Room)
-    timeslot = models.ManyToManyField(Timeslot)
+
+
+#---------------------------------- FOR 2ND EXPERIMENT -----------------------------------------
+    
+class CSPSyllabus(models.Model):
+    subject_code = models.CharField(max_length=20, unique=True)
+    subject_name = models.CharField(max_length=69)
+    courses = models.ManyToManyField(Course)
+    year_level = models.IntegerField(choices=YEAR)
 
     def __str__(self):
-        return f"[{self.subject_id}] {self.subject_name}"
+        return f"({self.subject_code}) {self.subject_name}"
+    
+
+class ETPyllabus(models.Model):
+    subject_code = models.CharField(max_length=20, unique=True)
+    subject_name = models.CharField(max_length=69)
+    courses = models.ManyToManyField(Course)
+    year_level = models.IntegerField(choices=YEAR)
+
+    def __str__(self):
+        return f"({self.subject_code}) {self.subject_name}"    
 
 
-class Instructor(models.Model):
-    instructor_id = models.IntegerField()
-    name = models.CharField(max_length=100, null=True)
+class CSPRoom(models.Model):
+    room_id = models.CharField(max_length=10, unique=True)
+    room_name = models.CharField(max_length=30, null=True, blank=True)
+    room_capacity =models.PositiveIntegerField(null=True, blank=True)
+    subject_tags = models.ManyToManyField(CSPSyllabus)
+
+    def __str__(self):
+        return f"({self.room_id}) {self.room_name}"
+    
+    
+class ETPRoom(models.Model):
+    room_id = models.CharField(max_length=10, unique=True)
+    room_name = models.CharField(max_length=30, null=True, blank=True)
+    room_capacity =models.PositiveIntegerField(null=True, blank=True)
+    #subject_tags = models.ManyToManyField(ETPSyllabus)
+
+    def __str__(self):
+        return f"({self.room_id}) {self.room_name}"    
+    
+
+class Session(models.Model):
+    subject = models.ForeignKey(CSPSyllabus, on_delete=models.CASCADE)
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
-    expertise = models.ManyToManyField(Subject)  # Instructors can have expertise in many subjects
-    
-    
-    def __str__(self):
-        return f"{self.instructor_id} ({self.name})"
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    section = models.ManyToManyField(Section)
+    timeslots = models.ManyToManyField(Timeslot)
     
 
+
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+    
 
 
 
