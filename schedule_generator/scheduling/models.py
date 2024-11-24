@@ -1,3 +1,5 @@
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 
@@ -186,50 +188,63 @@ class Timeslot(models.Model):
 class CSPSyllabus(models.Model):
     subject_code = models.CharField(max_length=20, unique=True)
     subject_name = models.CharField(max_length=69)
-    courses = models.ManyToManyField(Course)
+    courses = models.ManyToManyField('Course')
     year_level = models.IntegerField(choices=YEAR)
 
     def __str__(self):
         return f"({self.subject_code}) {self.subject_name}"
-    
 
-class ETPyllabus(models.Model):
+
+class ETPSyllabus(models.Model):
     subject_code = models.CharField(max_length=20, unique=True)
     subject_name = models.CharField(max_length=69)
-    courses = models.ManyToManyField(Course)
+    courses = models.ManyToManyField('Course')
     year_level = models.IntegerField(choices=YEAR)
 
     def __str__(self):
-        return f"({self.subject_code}) {self.subject_name}"    
+        return f"({self.subject_code}) {self.subject_name}"
 
 
 class CSPRoom(models.Model):
     room_id = models.CharField(max_length=10, unique=True)
     room_name = models.CharField(max_length=30, null=True, blank=True)
-    room_capacity =models.PositiveIntegerField(null=True, blank=True)
+    room_capacity = models.PositiveIntegerField(null=True, blank=True)
     subject_tags = models.ManyToManyField(CSPSyllabus)
 
     def __str__(self):
         return f"({self.room_id}) {self.room_name}"
-    
-    
+
+
 class ETPRoom(models.Model):
     room_id = models.CharField(max_length=10, unique=True)
     room_name = models.CharField(max_length=30, null=True, blank=True)
-    room_capacity =models.PositiveIntegerField(null=True, blank=True)
-    #subject_tags = models.ManyToManyField(ETPSyllabus)
+    room_capacity = models.PositiveIntegerField(null=True, blank=True)
+    subject_tags = models.ManyToManyField(ETPSyllabus)
 
     def __str__(self):
-        return f"({self.room_id}) {self.room_name}"    
-    
+        return f"({self.room_id}) {self.room_name}"
+
+
+
+# UNQUOTE THIS AFTER POPULATIING THE OTHER MODELS
 
 class Session(models.Model):
-    subject = models.ForeignKey(CSPSyllabus, on_delete=models.CASCADE)
+    # GenericForeignKey fields
+    subject_content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, related_name="sessions", null=True, blank=True)
+    subject_object_id = models.PositiveIntegerField(null=True, blank=True)
+    subject = GenericForeignKey('subject_content_type', 'subject_object_id')
+
+    # Other fields
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     section = models.ManyToManyField(Section)
     timeslots = models.ManyToManyField(Timeslot)
-    
+
+    def __str__(self):
+        return f"Session for {self.subject}"
+
+
+
 
 
 

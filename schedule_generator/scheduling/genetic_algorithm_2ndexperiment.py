@@ -5,6 +5,10 @@ from .models import *
 import numpy as np
 from math import sqrt
 from django.db.models import Q
+from django.contrib.contenttypes.models import ContentType
+
+
+
 
 
 # Helper functions
@@ -103,22 +107,19 @@ def is_within_allowed_time(timeslot_str, start, end):
 
 
 
-
 def initialize_population(population_size):
-
     population = []
     room_occupancy = defaultdict(list)  # Tracks room usage per timeslot and day
 
     # Fetch all sessions and prefetch related data
-    sessions = Session.objects.prefetch_related('section', 'timeslots', 'subject', 'course', 'department').all()
-
+    sessions = Session.objects.prefetch_related('section', 'timeslots', 'subject_content_type', 'course', 'department').all()
 
     for _ in range(population_size):
         individual_schedule = []
 
         for session in sessions:
-
             department = str(session.department.department_name)
+            subject = session.subject  # The dynamically resolved syllabus instance (CSPSyllabus or ETPSyllabus)
 
             # Filter and parse timeslots manually
             available_timeslots = [
@@ -126,14 +127,17 @@ def initialize_population(population_size):
                 if is_within_allowed_time(timeslot.timeslot, start=time(7, 30), end=time(21, 0))
             ]
 
+            # Dynamically determine the available rooms based on the subject type
             if department == "COMPUTER STUDIES PROGRAM":
-                available_rooms = CSPRoom.objects.filter(subject_tags=session.subject)
-
+                available_rooms = CSPRoom.objects.filter(subject_tags=subject)
             elif department == "ENGINEERING AND TECHNOLOGY PROGRAM":
-                 available_rooms = ETPRoom.objects.filter(subject_tags=session.subject)
+                available_rooms = ETPRoom.objects.filter(subject_tags=subject)
+            else:
+                print(f"Unknown department: {department}. Skipping session.")
+                continue
 
             if not available_rooms.exists():
-                print(f"No suitable rooms found for subject {session.subject.subject_name}.")
+                print(f"No suitable rooms found for subject {subject}.")
                 continue
 
             # Loop through each section in the session
@@ -156,7 +160,7 @@ def initialize_population(population_size):
                             # Assign room and timeslot to the section
                             session_entry = {
                                 'section': section,
-                                'subject': session.subject,
+                                'subject': subject,
                                 'room': room,
                                 'days': timeslot.days,
                                 'timeslot': timeslot.timeslot,
@@ -178,7 +182,7 @@ def initialize_population(population_size):
                         break
 
                 if not section_scheduled:
-                    print(f"Could not assign a room for section {section} in subject {session.subject.subject_name}.")
+                    print(f"Could not assign a room for section {section} in subject {subject}.")
 
         if not individual_schedule:
             print("Warning: Individual schedule is empty. Consider retrying or handling incomplete schedules.")
