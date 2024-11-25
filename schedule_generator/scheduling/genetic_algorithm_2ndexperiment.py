@@ -112,14 +112,20 @@ def initialize_population(population_size):
     room_occupancy = defaultdict(list)  # Tracks room usage per timeslot and day
 
     # Fetch all sessions and prefetch related data
-    sessions = Session.objects.prefetch_related('section', 'timeslots', 'subject_content_type', 'course', 'department').all()
+    sessions = Session.objects.prefetch_related(
+        'section', 'timeslots', 'subject_content_type', 'course', 'department'
+    ).all()
 
     for _ in range(population_size):
         individual_schedule = []
 
         for session in sessions:
             department = str(session.department.department_name)
-            subject = session.subject  # The dynamically resolved syllabus instance (CSPSyllabus or ETPSyllabus)
+            subject = session.subject  # Dynamically resolved syllabus instance (CSPSyllabus or ETPSyllabus)
+
+            if subject is None:
+                print(f"Session {session} has no associated subject. Skipping.")
+                continue
 
             # Filter and parse timeslots manually
             available_timeslots = [
@@ -127,13 +133,16 @@ def initialize_population(population_size):
                 if is_within_allowed_time(timeslot.timeslot, start=time(7, 30), end=time(21, 0))
             ]
 
-            # Dynamically determine the available rooms based on the subject type
-            if department == "COMPUTER STUDIES PROGRAM":
+            # Determine available rooms based on the resolved subject type
+            if isinstance(subject, CSPSyllabus):
                 available_rooms = CSPRoom.objects.filter(subject_tags=subject)
-            elif department == "ENGINEERING AND TECHNOLOGY PROGRAM":
-                available_rooms = ETPRoom.objects.filter(subject_tags=subject)
+           
+                '''
+                elif isinstance(subject, ETPSyllabus):
+                    available_rooms = ETPRoom.objects.filter(subject_tags=subject)
+                '''    
             else:
-                print(f"Unknown department: {department}. Skipping session.")
+                print(f"Subject type {type(subject)} not handled. Skipping session.")
                 continue
 
             if not available_rooms.exists():
