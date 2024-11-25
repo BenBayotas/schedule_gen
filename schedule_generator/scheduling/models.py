@@ -193,15 +193,6 @@ class CSPSyllabus(models.Model):
         return f"({self.subject_code}) {self.subject_name}"
     
 
-class ETPyllabus(models.Model):
-    subject_code = models.CharField(max_length=20, unique=True)
-    subject_name = models.CharField(max_length=69)
-    courses = models.ManyToManyField(Course)
-    year_level = models.IntegerField(choices=YEAR)
-
-    def __str__(self):
-        return f"({self.subject_code}) {self.subject_name}"    
-
 
 class CSPRoom(models.Model):
     room_id = models.CharField(max_length=10, unique=True)
@@ -212,16 +203,8 @@ class CSPRoom(models.Model):
     def __str__(self):
         return f"({self.room_id}) {self.room_name}"
     
-    
-class ETPRoom(models.Model):
-    room_id = models.CharField(max_length=10, unique=True)
-    room_name = models.CharField(max_length=30, null=True, blank=True)
-    room_capacity =models.PositiveIntegerField(null=True, blank=True)
-    #subject_tags = models.ManyToManyField(ETPSyllabus)
 
-    def __str__(self):
-        return f"({self.room_id}) {self.room_name}"    
-    
+
 
 class Session(models.Model):
     subject = models.ForeignKey(CSPSyllabus, on_delete=models.CASCADE)

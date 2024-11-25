@@ -129,9 +129,6 @@ def initialize_population(population_size):
             if department == "COMPUTER STUDIES PROGRAM":
                 available_rooms = CSPRoom.objects.filter(subject_tags=session.subject)
 
-            elif department == "ENGINEERING AND TECHNOLOGY PROGRAM":
-                 available_rooms = ETPRoom.objects.filter(subject_tags=session.subject)
-
             if not available_rooms.exists():
                 print(f"No suitable rooms found for subject {session.subject.subject_name}.")
                 continue
