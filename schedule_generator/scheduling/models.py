@@ -193,21 +193,41 @@ class CSPSyllabus(models.Model):
         return f"({self.subject_code}) {self.subject_name}"
     
 
+class MajorSubject(models.Model):
+    subject_code = models.CharField(max_length=20, unique=True)
+    subject_name = models.CharField(max_length=69)
+    department = models.ForeignKey(Department, on_delete=models.CASCADE)
+    courses = models.ManyToManyField(Course)
+    year_level = models.IntegerField(choices=YEAR)
+    need_lab = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"({self.subject_code}) {self.subject_name}"
+
+
 
 class CSPRoom(models.Model):
     room_id = models.CharField(max_length=10, unique=True)
     room_name = models.CharField(max_length=30, null=True, blank=True)
     room_capacity =models.PositiveIntegerField(null=True, blank=True)
-    subject_tags = models.ManyToManyField(CSPSyllabus)
+    subject_tags = models.ManyToManyField(MajorSubject)
+
+    def __str__(self):
+        return f"({self.room_id}) {self.room_name}"
+
+
+class ETPRoom(models.Model):
+    room_id = models.CharField(max_length=10, unique=True)
+    room_name = models.CharField(max_length=30, null=True, blank=True)
+    room_capacity =models.PositiveIntegerField(null=True, blank=True)
+    subject_tags = models.ManyToManyField(MajorSubject)
 
     def __str__(self):
         return f"({self.room_id}) {self.room_name}"
     
 
-
-
-class Session(models.Model):
-    subject = models.ForeignKey(CSPSyllabus, on_delete=models.CASCADE)
+class MajorSession(models.Model):
+    subject = models.ForeignKey(MajorSubject, on_delete=models.CASCADE)
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     section = models.ManyToManyField(Section)

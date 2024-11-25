@@ -110,7 +110,7 @@ def initialize_population(population_size):
     room_occupancy = defaultdict(list)  # Tracks room usage per timeslot and day
 
     # Fetch all sessions and prefetch related data
-    sessions = Session.objects.prefetch_related('section', 'timeslots', 'subject', 'course', 'department').all()
+    sessions = MajorSession.objects.prefetch_related('section', 'timeslots', 'subject', 'course', 'department').all()
 
 
     for _ in range(population_size):
