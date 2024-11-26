@@ -147,21 +147,17 @@ def schedule_view(request):
 
 def schedule_view_rmse(request):
     # Initialize the genetic algorithm and get the best schedule
-    ga = GeneticAlgorithm(population_size=100)
+    ga = GeneticAlgorithm(population_size=100, generations=50, mutation_rate=0.01)
     best_schedule = ga.run()
 
     # Format the schedule for display
     formatted_schedule = []
     for session in best_schedule:
-        if isinstance(session['timeslot'], str):
-            timeslot = session['timeslot']
-        else:
-            timeslot = f"{session['timeslot'].start_time.strftime('%I:%M %p')} - {session['timeslot'].end_time.strftime('%I:%M %p')}"
-        
+        timeslot = session['timeslot']  # Timeslot is stored as a string in the updated models
         formatted_schedule.append({
             'room': session['room'].room_id,
-            'section': getattr(session['section'], 'name', session['section']),
-            'subject': getattr(session['subject'], 'subject_name', session['subject']),
+            'section': getattr(session['section'], 'name', str(session['section'])),
+            'subject': getattr(session['subject'], 'subject_name', str(session['subject'])),
             'timeslot': timeslot,
             'days': session['days']
         })
@@ -177,7 +173,7 @@ def schedule_view_rmse(request):
             return (2, room)
         else:
             return (3, room)
-    
+
     formatted_schedule.sort(key=room_sort_key)
 
     # Calculate evaluation metrics
@@ -194,7 +190,6 @@ def schedule_view_rmse(request):
     }
 
     return render(request, 'schedule_view_rmse.html', context)
-
 
 
 
