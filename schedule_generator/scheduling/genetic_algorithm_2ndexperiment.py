@@ -10,19 +10,25 @@ from django.db.models import Q
 # Helper functions
 
 
-def parse_timeslot(timeslot):
-    start_str, end_str = timeslot.split(" - ")
-    start_time = datetime.strptime(start_str.strip(), "%I:%M%p").time()
-    end_time = datetime.strptime(end_str.strip(), "%I:%M%p").time()
-    return start_time, end_time
+def parse_timeslot(timeslot_str):
+    """
+    Parses a timeslot string (e.g., "09:00AM - 10:30AM") into a tuple of start and end times.
+    """
+    if " - " not in timeslot_str:
+        raise ValueError(f"Invalid timeslot format: {timeslot_str}")
+    
+    try:
+        start_time_str, end_time_str = timeslot_str.split(" - ")
+        return start_time_str.strip(), end_time_str.strip()
+    except ValueError:
+        raise ValueError(f"Timeslot string is malformed: {timeslot_str}")
 
 
-def parse_days(days):
+def parse_days(days_str):
     """
-    Parses days string and returns a set of individual days.
-    Handles both single-day strings (e.g., "M") and multi-day strings (e.g., "M / TH").
+    Parses the days string (e.g., "M / TH" or "W") into a set of days.
     """
-    return {day.strip() for day in days.split(" / ")}
+    return set(day.strip() for day in days_str.split('/') if day.strip())
 
 
 def time_conflict(session1, session2):
@@ -45,23 +51,17 @@ def time_conflict(session1, session2):
 
 
 
-def has_conflict(existing_sessions, new_timeslot, new_days):
+def has_conflict(room_schedule, timeslot, days_str):
     """
-    Checks if a new session has any time or day conflicts with existing sessions.
+    Checks if a conflict exists for the given room's schedule, timeslot, and days string.
     """
-    new_start, new_end = parse_timeslot(new_timeslot)
-    new_days_set = parse_days(new_days)
+    days = parse_days(days_str)  # Convert to a set
+    for entry in room_schedule:
+        entry_days = parse_days(entry.get('days', ''))  # Parse stored days string
+        entry_timeslot = entry.get('timeslot')
 
-    for session in existing_sessions:
-        session_start, session_end = parse_timeslot(session['timeslot'])
-        session_days_set = parse_days(session['days'])
-
-        # Check for overlapping days and conflicting times
-        common_days = new_days_set & session_days_set
-        if common_days:
-            # Times conflict if there is any overlap or if one starts exactly when the other ends
-            if (new_start < session_end and new_end > session_start) or (session_start < new_end and session_end > new_start):
-                return True
+        if entry_days and timeslot_overlap(entry_timeslot, timeslot) and days & entry_days:
+            return True
     return False
 
 
@@ -85,22 +85,43 @@ def timeslot_overlap(ts1, ts2):
     return max(start1, start2) < min(end1, end2)  # Overlaps if there's any intersection
 
 
-def is_within_allowed_time(timeslot_str, start, end):
+
+
+def is_within_allowed_time(timeslot, allowed_start, allowed_end):
     """
-    Checks if a timeslot string falls within a given start and end time.
+    Checks if a timeslot is within the allowed time range.
 
     Args:
-        timeslot_str (str): Timeslot string in the format "09:00AM - 11:30AM".
-        start (datetime.time): Earliest allowed time.
-        end (datetime.time): Latest allowed time.
+        timeslot (tuple): A tuple containing the start and end times as strings (e.g., ("09:00AM", "10:30AM")).
+        allowed_start (str): The allowed start time as a string (e.g., "08:00AM").
+        allowed_end (str): The allowed end time as a string (e.g., "06:00PM").
 
     Returns:
-        bool: True if the timeslot is within the allowed time range.
+        bool: True if the timeslot is within the allowed time range, False otherwise.
+
+    Raises:
+        ValueError: If any of the time strings have an invalid format.
     """
-    timeslot_start, timeslot_end = parse_timeslot(timeslot_str)
-    return timeslot_start >= start and timeslot_end <= end
+    # Helper function to parse time strings into datetime.time objects
+    def parse_time_string(time_str):
+        try:
+            return datetime.strptime(time_str.strip(), "%I:%M%p").time()
+        except ValueError as e:
+            raise ValueError(f"Invalid time format '{time_str}': {e}")
 
+    if not isinstance(timeslot, tuple) or len(timeslot) != 2:
+        raise ValueError(f"Invalid timeslot format: Expected a tuple with two strings, got {timeslot}")
 
+    try:
+        # Parse the timeslot and allowed times
+        start_time, end_time = map(parse_time_string, timeslot)
+        allowed_start_time = parse_time_string(allowed_start)
+        allowed_end_time = parse_time_string(allowed_end)
+    except ValueError as e:
+        raise ValueError(f"Error parsing time strings: {e}")
+
+    # Compare times
+    return allowed_start_time <= start_time and end_time <= allowed_end_time
 
 
 
@@ -121,8 +142,15 @@ def initialize_population(population_size):
             # Get available timeslots within allowed time
             available_timeslots = [
                 timeslot for timeslot in session.timeslots.all()
-                if is_within_allowed_time(timeslot.timeslot, start=time(7, 30), end=time(21, 0))
+                if is_within_allowed_time(
+                    tuple(timeslot.timeslot.split(" - ")),  # Parse timeslot into start and end
+                    "07:30AM", "09:00PM"
+                )
             ]
+
+            if not available_timeslots:
+                print(f"No suitable timeslots found for subject {session.subject.subject_name}.")
+                continue
 
             # Determine available rooms based on session attributes
             if department == "COMPUTER STUDIES PROGRAM" and has_lab:

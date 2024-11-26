@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponse
-from .genetic_algorithm import GeneticAlgorithm, calculate_rmse, calculate_accuracy, calculate_room_assignment_accuracy
+from .genetic_algorithm_2ndexperiment import GeneticAlgorithm, calculate_rmse, calculate_accuracy, calculate_room_assignment_accuracy
 from .forms import *
 from django.urls import reverse
 
@@ -143,8 +143,6 @@ def schedule_view(request):
 
 
 
-
-
 def schedule_view_rmse(request):
     # Initialize the genetic algorithm and get the best schedule
     ga = GeneticAlgorithm(population_size=100, generations=50, mutation_rate=0.01)
@@ -158,8 +156,8 @@ def schedule_view_rmse(request):
             'room': session['room'].room_id,
             'section': getattr(session['section'], 'name', str(session['section'])),
             'subject': getattr(session['subject'], 'subject_name', str(session['subject'])),
-            'timeslot': timeslot,
-            'days': session['days']
+            'timeslot': session['timeslot'],
+            'days': session['days'].replace('/', ' / '),  # Add spacing for readability
         })
 
     # Sort the schedule based on room priority
