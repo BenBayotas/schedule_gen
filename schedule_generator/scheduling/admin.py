@@ -5,11 +5,12 @@ from .models import *
 admin.site.register(Department)
 admin.site.register(Course)
 admin.site.register(Section)
-admin.site.register(Room)
+admin.site.register(LectureRoom)
 admin.site.register(Timeslot)
-admin.site.register(CSPSyllabus)
+admin.site.register(MajorSubject)
 admin.site.register(CSPRoom)
-admin.site.register(Session)
+admin.site.register(ETPRoom)
+admin.site.register(MajorSession)
 
 
 

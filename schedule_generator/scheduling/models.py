@@ -184,7 +184,7 @@ class Timeslot(models.Model):
 #---------------------------------- FOR 2ND EXPERIMENT -----------------------------------------
     
 class CSPSyllabus(models.Model):
-    subject_code = models.CharField(max_length=20, unique=True)
+    subject_code = models.CharField(max_length=30, unique=True)
     subject_name = models.CharField(max_length=69)
     courses = models.ManyToManyField(Course)
     year_level = models.IntegerField(choices=YEAR)
@@ -194,7 +194,7 @@ class CSPSyllabus(models.Model):
     
 
 class MajorSubject(models.Model):
-    subject_code = models.CharField(max_length=20, unique=True)
+    subject_code = models.CharField(max_length=30, unique=True)
     subject_name = models.CharField(max_length=69)
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     courses = models.ManyToManyField(Course)
@@ -229,9 +229,11 @@ class ETPRoom(models.Model):
 class MajorSession(models.Model):
     subject = models.ForeignKey(MajorSubject, on_delete=models.CASCADE)
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
-    course = models.ForeignKey(Course, on_delete=models.CASCADE)
     section = models.ManyToManyField(Section)
     timeslots = models.ManyToManyField(Timeslot)
+
+    def __str__(self):
+        return f"{self.subject}"
     
 
 

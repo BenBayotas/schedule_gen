@@ -105,29 +105,32 @@ def is_within_allowed_time(timeslot_str, start, end):
 
 
 def initialize_population(population_size):
-
     population = []
     room_occupancy = defaultdict(list)  # Tracks room usage per timeslot and day
 
     # Fetch all sessions and prefetch related data
-    sessions = MajorSession.objects.prefetch_related('section', 'timeslots', 'subject', 'course', 'department').all()
-
+    sessions = MajorSession.objects.prefetch_related('section', 'timeslots', 'subject', 'department').all()
 
     for _ in range(population_size):
         individual_schedule = []
 
         for session in sessions:
-
             department = str(session.department.department_name)
+            has_lab = session.subject.need_lab
 
-            # Filter and parse timeslots manually
+            # Get available timeslots within allowed time
             available_timeslots = [
                 timeslot for timeslot in session.timeslots.all()
                 if is_within_allowed_time(timeslot.timeslot, start=time(7, 30), end=time(21, 0))
             ]
 
-            if department == "COMPUTER STUDIES PROGRAM":
+            # Determine available rooms based on session attributes
+            if department == "COMPUTER STUDIES PROGRAM" and has_lab:
                 available_rooms = CSPRoom.objects.filter(subject_tags=session.subject)
+                if not available_rooms.exists():
+                    available_rooms = CSPRoom.objects.all()
+            else:
+                available_rooms = LectureRoom.objects.all()
 
             if not available_rooms.exists():
                 print(f"No suitable rooms found for subject {session.subject.subject_name}.")
@@ -137,7 +140,7 @@ def initialize_population(population_size):
             for section in session.section.all():
                 section_scheduled = False
 
-                # Try to assign the section to a room and timeslot
+                # Assign section to a room and timeslot
                 for timeslot in available_timeslots:
                     rooms = list(available_rooms)
                     random.shuffle(rooms)  # Shuffle rooms to reduce bias
@@ -198,23 +201,30 @@ def fitness(individual_schedule):
         days = session['days']
         room = session['room']
 
-        start_time, _ = parse_timeslot(timeslot)
+        start_time, end_time = parse_timeslot(timeslot)
         session_days = parse_days(days)
 
-        # Check for conflicts
+        # Check for conflicts with existing sessions in the room
+        conflict = False
         for existing_timeslot, existing_days in session_occupancy[room]:
-            if session_days & parse_days(existing_days):
+            existing_start, existing_end = parse_timeslot(existing_timeslot)
+            overlap_days = session_days & parse_days(existing_days)
+
+            if overlap_days and not (
+                end_time <= existing_start or start_time >= existing_end
+            ):
                 fitness_score -= 10
+                conflict = True
                 break
-        else:
-            fitness_score += 5
+
+        if not conflict:
+            fitness_score += 5  # Reward conflict-free scheduling
 
         session_occupancy[room].append((timeslot, days))
 
     return fitness_score
 
 
-    
 
 def selection(population, fitness_scores, k=3):
     fitness_scores = [max(score, 0) for score in fitness_scores]  # Normalize scores
@@ -223,11 +233,10 @@ def selection(population, fitness_scores, k=3):
 
 
 def crossover(parent1, parent2):
-     cutoff = random.randint(0, len(parent1) - 1)
-     child1 = parent1[:cutoff] + parent2[cutoff:]
-     child2 = parent2[:cutoff] + parent1[cutoff:]
-     
-     return child1, child2
+    cutoff = random.randint(0, len(parent1) - 1)
+    child1 = parent1[:cutoff] + parent2[cutoff:]
+    child2 = parent2[:cutoff] + parent1[cutoff:]
+    return child1, child2
 
 
 
@@ -245,11 +254,12 @@ def mutate(individual, mutation_rate=0.01, session_occupancy=None):
         days = session['days']
         timeslot = session['timeslot']
         current_room = session['room']
+        subject = session['subject']
 
         # Fetch available rooms based on the session's subject tags
-        available_rooms = CSPRoom.objects.filter(subject_tags=session['subject'])
+        available_rooms = CSPRoom.objects.filter(subject_tags=subject)
         if not available_rooms.exists():
-            return individual  # No valid rooms to mutate, return unchanged
+            available_rooms = LectureRoom.objects.all()
 
         # Attempt to find a new room and timeslot that avoids conflicts
         room_found = False
@@ -257,7 +267,10 @@ def mutate(individual, mutation_rate=0.01, session_occupancy=None):
         for _ in range(max_attempts):
             new_room = random.choice(available_rooms)
 
-            if not has_conflict(session_occupancy[new_room], timeslot, days):
+            if not any(
+                has_conflict(session_occupancy[new_room], timeslot, day)
+                for day in parse_days(days)
+            ):
                 # Assign the new room and update occupancy
                 session['room'] = new_room
                 session_occupancy[new_room].append({
@@ -275,44 +288,40 @@ def mutate(individual, mutation_rate=0.01, session_occupancy=None):
     return individual
 
 
-
-
-
 class GeneticAlgorithm:
-     
-     def __init__(self, population_size=100, generations=50, mutation_rate=0.01):
-          self.population_size = population_size
-          self.generations = generations
-          self.mutation_rate = mutation_rate
+    def __init__(self, population_size=100, generations=50, mutation_rate=0.01):
+        self.population_size = population_size
+        self.generations = generations
+        self.mutation_rate = mutation_rate
 
-     def run(self):
-          population = initialize_population(self.population_size)
+    def run(self):
+        population = initialize_population(self.population_size)
 
-          for _ in range(self.generations):
+        for _ in range(self.generations):
+            # Evaluate fitness of each individual
+            population_with_fitness = [(individual, fitness(individual)) for individual in population]
+            population_with_fitness.sort(key=lambda x: x[1], reverse=True)
 
-               population_with_fitness = [(individual, fitness(individual)) for individual in population]  
-               population_with_fitness.sort(key=lambda x: x[1], reverse=True)   
+            sorted_population = [individual for individual, _ in population_with_fitness]
 
-               sorted_population = [individual for individual, _ in population_with_fitness]
+            new_population = []
+            while len(new_population) < self.population_size:
+                # Select parents using selection
+                parents = selection(sorted_population, [score for _, score in population_with_fitness])
 
-               new_population = []
+                # Generate offspring using crossover
+                offspring1, offspring2 = crossover(parents[0], parents[1])
 
-               while len(new_population) < self.population_size:
-                    
-                    #sorted_population = [individual for individual, _ in population_with_fitness]
-                    parents = selection(sorted_population, [score for _, score in population_with_fitness])
-                    offspring1, offspring2 = crossover(parents[0], parents[1])
+                # Apply mutation to offspring
+                offspring1 = mutate(offspring1, self.mutation_rate)
+                offspring2 = mutate(offspring2, self.mutation_rate)
 
-                    offspring1 = mutate(offspring1, self.mutation_rate)
-                    offspring2 = mutate(offspring2, self.mutation_rate)
+                new_population.extend([offspring1, offspring2])
 
-                    new_population.extend([offspring1, offspring2])
+            population = new_population[:self.population_size]  # Ensure population size remains constant
 
-               population = new_population      
-          
-          best_individual = sorted_population[0]
-     
-          return best_individual
+        best_individual = max(population, key=fitness)
+        return best_individual
 
         
 
@@ -325,15 +334,15 @@ def calculate_rmse(population):
 
         for session in individual:
             room = session['room']
-            parsed_timeslot = parse_timeslot(session['timeslot'])
-            parsed_days = parse_days(session['days'])
+            timeslot = session['timeslot']
+            days = parse_days(session['days'])
 
             for occupied_timeslot, occupied_days in session_occupancy[room]:
-                if parsed_days & parse_days(occupied_days) and timeslot_overlap(parsed_timeslot, occupied_timeslot):
+                if days & parse_days(occupied_days) and timeslot_overlap(parse_timeslot(timeslot), parse_timeslot(occupied_timeslot)):
                     conflicts += 1
                     break
 
-            session_occupancy[room].append((parsed_timeslot, parsed_days))
+            session_occupancy[room].append((timeslot, session['days']))
 
         conflict_counts.append(conflicts)
 
@@ -351,17 +360,17 @@ def calculate_accuracy(population):
 
         for session in individual:
             room = session['room']
-            parsed_timeslot = parse_timeslot(session['timeslot'])
-            parsed_days = set(parse_days(session['days']))
+            timeslot = session['timeslot']
+            days = set(parse_days(session['days']))
 
             # Check for conflicts in the same room
             for occupied_timeslot, occupied_days in session_occupancy[room]:
-                if parsed_days & occupied_days and timeslot_overlap(parsed_timeslot, occupied_timeslot):
+                if days & set(parse_days(occupied_days)) and timeslot_overlap(parse_timeslot(timeslot), parse_timeslot(occupied_timeslot)):
                     conflicts += 1
-                    break  # Stop checking once a conflict is found
+                    break
 
             # Add this session to the room occupancy
-            session_occupancy[room].append((parsed_timeslot, parsed_days))
+            session_occupancy[room].append((timeslot, session['days']))
 
         # Calculate the number of conflict-free sessions
         conflict_free_sessions = max(total_sessions - conflicts, 0)
@@ -369,31 +378,33 @@ def calculate_accuracy(population):
         accuracies.append(individual_accuracy)
 
     # Return average accuracy across the population in percentage
-    return max(np.mean(accuracies) * 100, 0)
+    return np.mean(accuracies) * 100 if accuracies else 0
 
 
 
 
 def calculate_room_assignment_accuracy(population):
     correct_assignments = []
-    
+
     for individual in population:
         individual_correct = 0
         total_sessions = len(individual)
-        
+
         for session in individual:
             room = session['room']
             subject = session['subject']
-            room_preference = subject.room_preference
-            requires_laboratory = subject.requires_laboratory
-            
-            if room.room_name == room_preference and room.is_laboratory == requires_laboratory:
+
+            # Fetch requirements based on updated model attributes
+            requires_laboratory = subject.need_lab
+            if requires_laboratory and isinstance(room, CSPRoom):
+                individual_correct += 1
+            elif not requires_laboratory and isinstance(room, LectureRoom):
                 individual_correct += 1
 
         accuracy = individual_correct / total_sessions if total_sessions > 0 else 0
         correct_assignments.append(accuracy)
-    
-    return np.mean(correct_assignments) * 100          
+
+    return np.mean(correct_assignments) * 100 if correct_assignments else 0    
           
 
 
