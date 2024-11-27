@@ -12,26 +12,24 @@ from django.db.models import Q
 
 def parse_timeslot(timeslot_str):
     """
-    Parses a timeslot string (e.g., "09:00AM - 10:30AM") into a tuple of start and end times.
-    If already a tuple, return it as is.
+    Parses a timeslot string (e.g., "03:30PM - 06:00PM") into a tuple of start and end times.
+    If the input is already a tuple, it validates and returns it directly.
     """
-    # If it's already a tuple, assume it's correctly formatted and return it
-    if isinstance(timeslot_str, tuple) and len(timeslot_str) == 2:
-        return timeslot_str
-    
-    if " - " not in timeslot_str:
+    if isinstance(timeslot_str, tuple):  # Input is already a tuple
+        if len(timeslot_str) != 2:
+            raise ValueError(f"Invalid timeslot tuple: {timeslot_str}")
+        return timeslot_str  # Return the tuple as is
+
+    if " - " not in timeslot_str:  # Input is a string but not formatted correctly
         raise ValueError(f"Invalid timeslot format: {timeslot_str}")
     
-    try:
-        start_time_str, end_time_str = timeslot_str.split(" - ")
-        return start_time_str.strip(), end_time_str.strip()
-    except ValueError:
-        raise ValueError(f"Timeslot string is malformed: {timeslot_str}")
+    start_time_str, end_time_str = timeslot_str.split(" - ")
+    return start_time_str.strip(), end_time_str.strip()
 
 
 def parse_days(days_str):
     """
-    Parses the days string (e.g., "M / TH" or "W") into a set of days.
+    Parses the days string (e.g., "M / TH") into a set of individual days.
     """
     return set(day.strip() for day in days_str.split('/') if day.strip())
 
@@ -59,34 +57,27 @@ def time_conflict(session1, session2):
 def has_conflict(room_schedule, timeslot, days_str, exclude_section=None):
     """
     Checks if a conflict exists for the given room's schedule, timeslot, and days string.
-    
-    Args:
-        room_schedule (list): A list of scheduled entries for a room.
-        timeslot (str): The timeslot to check (e.g., "03:30PM - 06:00PM").
-        days_str (str): The days string (e.g., "M / W").
-        exclude_section (str, optional): A section to exclude from conflict checks.
-
-    Returns:
-        bool: True if a conflict exists, False otherwise.
     """
-    days = parse_days(days_str)  # Convert to a set
-    parsed_timeslot = parse_timeslot(timeslot)  # Parse input timeslot string into a tuple
+    # Parse the input days and timeslot
+    parsed_days = parse_days(days_str)
+    parsed_timeslot = parse_timeslot(timeslot)
 
     for entry in room_schedule:
-        entry_days = parse_days(entry.get('days', ''))  # Parse stored days string
-        entry_timeslot = parse_timeslot(entry.get('timeslot', ''))  # Parse stored timeslot
+        if isinstance(entry, dict):  # Ensure entry is a dictionary
+            entry_days = parse_days(entry.get('days', ''))
+            entry_timeslot = parse_timeslot(entry.get('timeslot', ''))
+            entry_section = entry.get('section')
 
-        entry_section = entry.get('section')
+            # Skip the excluded section, if specified
+            if exclude_section and entry_section == exclude_section:
+                continue
 
-        # Skip the excluded section, if specified
-        if exclude_section and entry_section == exclude_section:
-            continue
-
-        # Check for conflicts
-        if entry_days and timeslot_overlap(entry_timeslot, parsed_timeslot) and days & entry_days:
-            return True
+            # Check for conflicts
+            if entry_days and timeslot_overlap(entry_timeslot, parsed_timeslot) and parsed_days & entry_days:
+                return True
+        else:
+            print(f"Invalid entry found in room_schedule: {entry}")
     return False
-
 
 
 
@@ -178,6 +169,8 @@ def is_within_allowed_time(timeslot, allowed_start, allowed_end):
 
 
 
+
+
 def initialize_population(population_size):
     population = []
     global_room_occupancy = defaultdict(list)  # Tracks room usage per timeslot and day
@@ -188,8 +181,8 @@ def initialize_population(population_size):
             print(f"Invalid room schedule entry: timeslot={timeslot}, day={day}, section={section}")
             return
 
-        entry = {
-            'timeslot': timeslot,  # Store the parsed tuple
+        entry = {  # Ensure this is properly scoped
+            'timeslot': timeslot,
             'days': day,
             'section': section
         }
@@ -212,6 +205,10 @@ def initialize_population(population_size):
                 if is_within_allowed_time(parse_timeslot(timeslot.timeslot), allowed_start="07:30AM", allowed_end="09:00PM")
             ]
 
+            if not available_timeslots:
+                print(f"No available timeslots for session {session.subject.subject_name}")
+                continue
+
             # Determine available rooms based on session attributes
             if department == "COMPUTER STUDIES PROGRAM" and has_lab:
                 available_rooms = CSPRoom.objects.filter(subject_tags=session.subject)
@@ -227,45 +224,41 @@ def initialize_population(population_size):
             for section in session.section.all():
                 section_scheduled = False
 
-                # Iterate over timeslots, preferring ones with fewer conflicts
-                for timeslot in sorted(available_timeslots, key=lambda ts: len(global_room_occupancy[parse_timeslot(ts.timeslot)])):
+                for timeslot in sorted(
+                    available_timeslots,
+                    key=lambda ts: len(global_room_occupancy.get(parse_timeslot(ts.timeslot), []))
+                ):
+                    parsed_timeslot = parse_timeslot(timeslot.timeslot)
+                    timeslot_days = parse_days(timeslot.days)
                     rooms = list(available_rooms)
-                    random.shuffle(rooms)  # Shuffle rooms to reduce bias
+                    random.shuffle(rooms)
 
                     for room in rooms:
-                        timeslot_days = parse_days(timeslot.days)
-                        parsed_timeslot = parse_timeslot(timeslot.timeslot)  # Parse timeslot
-
-                        # Check if the room is available for all days in the timeslot
                         if all(
                             not has_conflict(global_room_occupancy[room], parsed_timeslot, day)
                             for day in timeslot_days
                         ):
-                            # Check for intra-session conflicts across sections
                             if any(
                                 has_conflict(session_assignments[section], parsed_timeslot, day)
                                 for day in timeslot_days
                             ):
                                 continue
 
-                            # Check inter-session conflicts: Prevent same timeslot use for other subjects/sections
                             if any(
                                 has_conflict(global_room_occupancy[room], parsed_timeslot, day, exclude_section=section)
                                 for day in timeslot_days
                             ):
                                 continue
 
-                            # Assign room and timeslot to the section
                             session_entry = {
                                 'section': section,
                                 'subject': session.subject,
                                 'room': room,
                                 'days': timeslot.days,
-                                'timeslot': parsed_timeslot,  # Use parsed timeslot
+                                'timeslot': parsed_timeslot,
                             }
                             individual_schedule.append(session_entry)
 
-                            # Mark room and session as occupied for each day in the timeslot
                             for day in timeslot_days:
                                 add_room_schedule_entry(room, parsed_timeslot, day, section)
                                 session_assignments[section][day].append(parsed_timeslot)
