@@ -81,8 +81,6 @@ def timeslot_overlap(ts1, ts2):
 
 
 
-
-
 def initialize_population(population_size):
     
     population = []

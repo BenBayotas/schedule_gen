@@ -13,7 +13,12 @@ from django.db.models import Q
 def parse_timeslot(timeslot_str):
     """
     Parses a timeslot string (e.g., "09:00AM - 10:30AM") into a tuple of start and end times.
+    If already a tuple, return it as is.
     """
+    # If it's already a tuple, assume it's correctly formatted and return it
+    if isinstance(timeslot_str, tuple) and len(timeslot_str) == 2:
+        return timeslot_str
+    
     if " - " not in timeslot_str:
         raise ValueError(f"Invalid timeslot format: {timeslot_str}")
     
@@ -51,18 +56,37 @@ def time_conflict(session1, session2):
 
 
 
-def has_conflict(room_schedule, timeslot, days_str):
+def has_conflict(room_schedule, timeslot, days_str, exclude_section=None):
     """
     Checks if a conflict exists for the given room's schedule, timeslot, and days string.
+    
+    Args:
+        room_schedule (list): A list of scheduled entries for a room.
+        timeslot (str): The timeslot to check (e.g., "03:30PM - 06:00PM").
+        days_str (str): The days string (e.g., "M / W").
+        exclude_section (str, optional): A section to exclude from conflict checks.
+
+    Returns:
+        bool: True if a conflict exists, False otherwise.
     """
     days = parse_days(days_str)  # Convert to a set
+    parsed_timeslot = parse_timeslot(timeslot)  # Parse input timeslot string into a tuple
+
     for entry in room_schedule:
         entry_days = parse_days(entry.get('days', ''))  # Parse stored days string
-        entry_timeslot = entry.get('timeslot')
+        entry_timeslot = parse_timeslot(entry.get('timeslot', ''))  # Parse stored timeslot
 
-        if entry_days and timeslot_overlap(entry_timeslot, timeslot) and days & entry_days:
+        entry_section = entry.get('section')
+
+        # Skip the excluded section, if specified
+        if exclude_section and entry_section == exclude_section:
+            continue
+
+        # Check for conflicts
+        if entry_days and timeslot_overlap(entry_timeslot, parsed_timeslot) and days & entry_days:
             return True
     return False
+
 
 
 
@@ -80,9 +104,33 @@ def time_conflict(session1, session2):
 
 # Helper function to check for overlapping timeslots
 def timeslot_overlap(ts1, ts2):
+    """
+    Checks if two timeslots overlap.
+
+    Args:
+        ts1, ts2 (tuple or str): Start and end times as tuples (e.g., ("09:00AM", "10:30AM")) or raw timeslot strings.
+
+    Returns:
+        bool: True if the timeslots overlap, False otherwise.
+
+    Raises:
+        ValueError: If the inputs are not properly formatted.
+    """
+    # Parse if inputs are strings
+    if isinstance(ts1, str):
+        ts1 = parse_timeslot(ts1)
+    if isinstance(ts2, str):
+        ts2 = parse_timeslot(ts2)
+
+    # Validate input format
+    if not (isinstance(ts1, tuple) and len(ts1) == 2 and isinstance(ts2, tuple) and len(ts2) == 2):
+        raise ValueError(f"Invalid timeslot format: ts1={ts1}, ts2={ts2}. Expected tuples with two elements.")
+
     start1, end1 = ts1
     start2, end2 = ts2
-    return max(start1, start2) < min(end1, end2)  # Overlaps if there's any intersection
+
+    # Check for overlap
+    return max(start1, start2) < min(end1, end2)
 
 
 
@@ -92,7 +140,8 @@ def is_within_allowed_time(timeslot, allowed_start, allowed_end):
     Checks if a timeslot is within the allowed time range.
 
     Args:
-        timeslot (tuple): A tuple containing the start and end times as strings (e.g., ("09:00AM", "10:30AM")).
+        timeslot (tuple or str): A tuple containing the start and end times as strings (e.g., ("09:00AM", "10:30AM")),
+                                 or a timeslot string (e.g., "09:00AM - 10:30AM").
         allowed_start (str): The allowed start time as a string (e.g., "08:00AM").
         allowed_end (str): The allowed end time as a string (e.g., "06:00PM").
 
@@ -108,6 +157,10 @@ def is_within_allowed_time(timeslot, allowed_start, allowed_end):
             return datetime.strptime(time_str.strip(), "%I:%M%p").time()
         except ValueError as e:
             raise ValueError(f"Invalid time format '{time_str}': {e}")
+
+    # Parse timeslot if provided as a string
+    if isinstance(timeslot, str):
+        timeslot = parse_timeslot(timeslot)  # Ensure it's a tuple
 
     if not isinstance(timeslot, tuple) or len(timeslot) != 2:
         raise ValueError(f"Invalid timeslot format: Expected a tuple with two strings, got {timeslot}")
@@ -127,13 +180,27 @@ def is_within_allowed_time(timeslot, allowed_start, allowed_end):
 
 def initialize_population(population_size):
     population = []
-    room_occupancy = defaultdict(list)  # Tracks room usage per timeslot and day
+    global_room_occupancy = defaultdict(list)  # Tracks room usage per timeslot and day
+
+    # Helper function to validate and append room schedule entries
+    def add_room_schedule_entry(room, timeslot, day, section):
+        if not isinstance(timeslot, tuple) or not isinstance(day, str) or not section:
+            print(f"Invalid room schedule entry: timeslot={timeslot}, day={day}, section={section}")
+            return
+
+        entry = {
+            'timeslot': timeslot,  # Store the parsed tuple
+            'days': day,
+            'section': section
+        }
+        global_room_occupancy[room].append(entry)
 
     # Fetch all sessions and prefetch related data
     sessions = MajorSession.objects.prefetch_related('section', 'timeslots', 'subject', 'department').all()
 
     for _ in range(population_size):
         individual_schedule = []
+        session_assignments = defaultdict(lambda: defaultdict(list))  # Tracks per-session assignments for validation
 
         for session in sessions:
             department = str(session.department.department_name)
@@ -142,15 +209,8 @@ def initialize_population(population_size):
             # Get available timeslots within allowed time
             available_timeslots = [
                 timeslot for timeslot in session.timeslots.all()
-                if is_within_allowed_time(
-                    tuple(timeslot.timeslot.split(" - ")),  # Parse timeslot into start and end
-                    "07:30AM", "09:00PM"
-                )
+                if is_within_allowed_time(parse_timeslot(timeslot.timeslot), allowed_start="07:30AM", allowed_end="09:00PM")
             ]
-
-            if not available_timeslots:
-                print(f"No suitable timeslots found for subject {session.subject.subject_name}.")
-                continue
 
             # Determine available rooms based on session attributes
             if department == "COMPUTER STUDIES PROGRAM" and has_lab:
@@ -164,40 +224,51 @@ def initialize_population(population_size):
                 print(f"No suitable rooms found for subject {session.subject.subject_name}.")
                 continue
 
-            # Loop through each section in the session
             for section in session.section.all():
                 section_scheduled = False
 
-                # Assign section to a room and timeslot
-                for timeslot in available_timeslots:
+                # Iterate over timeslots, preferring ones with fewer conflicts
+                for timeslot in sorted(available_timeslots, key=lambda ts: len(global_room_occupancy[parse_timeslot(ts.timeslot)])):
                     rooms = list(available_rooms)
                     random.shuffle(rooms)  # Shuffle rooms to reduce bias
 
                     for room in rooms:
                         timeslot_days = parse_days(timeslot.days)
+                        parsed_timeslot = parse_timeslot(timeslot.timeslot)  # Parse timeslot
 
-                        # Check if room is free for all days in the timeslot
+                        # Check if the room is available for all days in the timeslot
                         if all(
-                            not has_conflict(room_occupancy[room], timeslot.timeslot, day)
+                            not has_conflict(global_room_occupancy[room], parsed_timeslot, day)
                             for day in timeslot_days
                         ):
+                            # Check for intra-session conflicts across sections
+                            if any(
+                                has_conflict(session_assignments[section], parsed_timeslot, day)
+                                for day in timeslot_days
+                            ):
+                                continue
+
+                            # Check inter-session conflicts: Prevent same timeslot use for other subjects/sections
+                            if any(
+                                has_conflict(global_room_occupancy[room], parsed_timeslot, day, exclude_section=section)
+                                for day in timeslot_days
+                            ):
+                                continue
+
                             # Assign room and timeslot to the section
                             session_entry = {
                                 'section': section,
                                 'subject': session.subject,
                                 'room': room,
                                 'days': timeslot.days,
-                                'timeslot': timeslot.timeslot,
+                                'timeslot': parsed_timeslot,  # Use parsed timeslot
                             }
                             individual_schedule.append(session_entry)
 
-                            # Mark room as occupied for each day in the timeslot
+                            # Mark room and session as occupied for each day in the timeslot
                             for day in timeslot_days:
-                                room_occupancy[room].append({
-                                    'timeslot': timeslot.timeslot,
-                                    'day': day,
-                                    'section': section,
-                                })
+                                add_room_schedule_entry(room, parsed_timeslot, day, section)
+                                session_assignments[section][day].append(parsed_timeslot)
 
                             section_scheduled = True
                             break
@@ -213,7 +284,6 @@ def initialize_population(population_size):
         population.append(individual_schedule)
 
     return population
-
 
 
 
