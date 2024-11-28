@@ -11,6 +11,9 @@ admin.site.register(MajorSubject)
 admin.site.register(CSPRoom)
 admin.site.register(ETPRoom)
 admin.site.register(MajorSession)
+admin.site.register(Subject)
+admin.site.register(CSPSyllabus)
+
 
 
 

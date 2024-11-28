@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponse
-from .genetic_algorithm_2ndexperiment import GeneticAlgorithm, calculate_rmse, calculate_accuracy, calculate_room_assignment_accuracy
+from .genetic_algorithm_copy import GeneticAlgorithm, calculate_rmse, calculate_accuracy, calculate_room_assignment_accuracy
 from .forms import *
 from django.urls import reverse
 

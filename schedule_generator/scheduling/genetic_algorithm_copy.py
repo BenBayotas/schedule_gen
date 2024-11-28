@@ -1,0 +1,487 @@
+from collections import defaultdict
+import random
+from datetime import datetime
+from .models import *
+import numpy as np
+from math import sqrt
+from django.db.models import Q
+
+
+# Helper functions
+
+
+def parse_timeslot(timeslot):
+    start_str, end_str = timeslot.split(" - ")
+    start_time = datetime.strptime(start_str.strip(), "%I:%M%p").time()
+    end_time = datetime.strptime(end_str.strip(), "%I:%M%p").time()
+    return start_time, end_time
+
+def parse_days(days):
+    """
+    Parses days string and returns a set of individual days.
+    Handles both single-day strings (e.g., "M") and multi-day strings (e.g., "M / TH").
+    """
+    return {day.strip() for day in days.split(" / ")}
+
+def time_conflict(session1, session2):
+    """
+    Checks if two sessions overlap in time on any common day.
+    Includes edge cases like exact start/end matches and partial overlaps.
+    """
+    start1, end1 = parse_timeslot(session1['timeslot'])
+    start2, end2 = parse_timeslot(session2['timeslot'])
+    days1 = parse_days(session1['days'])
+    days2 = parse_days(session2['days'])
+    
+    # Check for common days between the sessions
+    common_days = days1 & days2
+    if common_days:
+        # Check if times overlap (even partially or exactly)
+        if (start1 < end2 and end1 > start2) or (start2 < end1 and end2 > start1):
+            return True
+    return False
+
+def has_conflict(existing_sessions, new_timeslot, new_days):
+    """
+    Checks if a new session has any time or day conflicts with existing sessions.
+    """
+    new_start, new_end = parse_timeslot(new_timeslot)
+    new_days_set = parse_days(new_days)
+
+    for session in existing_sessions:
+        session_start, session_end = parse_timeslot(session['timeslot'])
+        session_days_set = parse_days(session['days'])
+
+        # Check for overlapping days and conflicting times
+        common_days = new_days_set & session_days_set
+        if common_days:
+            # Times conflict if there is any overlap or if one starts exactly when the other ends
+            if (new_start < session_end and new_end > session_start) or (session_start < new_end and session_end > new_start):
+                return True
+    return False
+
+
+def time_conflict(session1, session2):
+    start1, end1 = parse_timeslot(session1['timeslot'])
+    start2, end2 = parse_timeslot(session2['timeslot'])
+    days1 = set(parse_days(session1['days']))
+    days2 = set(parse_days(session2['days']))
+
+    # Check for overlapping times on any common day
+    if days1 & days2:  # If there’s a common day
+        return max(start1, start2) < min(end1, end2)  # Times overlap
+    return False
+
+
+# Helper function to check for overlapping timeslots
+def timeslot_overlap(ts1, ts2):
+    start1, end1 = ts1
+    start2, end2 = ts2
+    return max(start1, start2) < min(end1, end2)  # Overlaps if there's any intersection
+
+
+
+
+
+def assign_room(subject):
+    """
+    Assigns a room based on the department of the subject and whether it requires a laboratory.
+    """
+    department = subject.department.department_name
+    requires_laboratory = subject.requires_laboratory
+
+    # Assign laboratory rooms if needed
+    if requires_laboratory:
+        if department == "COMPUTER STUDIES PROGRAM":
+            available_rooms = CSPRoom.objects.filter(subject_tags=subject, room_capacity__gt=0)  # Filter rooms that are laboratories
+            if not available_rooms.exists():
+                available_rooms = CSPRoom.objects.filter(room_capacity__gt=0)  # Default to all CSP rooms
+        elif department == "ENGINEERING TECHNOLOGY PROGRAM":
+            available_rooms = ETPRoom.objects.filter(subject_tags=subject, room_capacity__gt=0)  # Filter rooms that are laboratories
+            if not available_rooms.exists():
+                available_rooms = ETPRoom.objects.filter(room_capacity__gt=0)  # Default to all ETP rooms
+        else:
+            available_rooms = LectureRoom.objects.filter(room_capacity__gt=0)  # Default to all lecture rooms with capacity
+
+    # If laboratory room is not required, assign normal rooms
+    else:
+        if department == "COMPUTER STUDIES PROGRAM":
+            available_rooms = CSPRoom.objects.filter(subject_tags=subject)
+            if not available_rooms.exists():
+                available_rooms = CSPRoom.objects.all()  # Default to all CSP rooms
+        elif department == "ENGINEERING TECHNOLOGY PROGRAM":
+            available_rooms = ETPRoom.objects.filter(subject_tags=subject)
+            if not available_rooms.exists():
+                available_rooms = ETPRoom.objects.all()  # Default to all ETP rooms
+        else:
+            available_rooms = LectureRoom.objects.all()  # Default to all lecture rooms
+    
+    return available_rooms
+
+
+def initialize_population(population_size):
+    population = []
+    session_occupancy = defaultdict(list)
+
+    sections = Section.objects.all()
+    for _ in range(population_size):
+
+        individual_schedule = []
+
+        for section in sections:
+            subjects = Subject.objects.filter(section=section)
+
+            for subject in subjects:
+                days = subject.days
+                timeslot = subject.timeslot
+                starttime = subject.starttime
+                room_preference = subject.room_preference
+                requires_laboratory = subject.requires_laboratory
+
+                available_rooms = Room.objects.none()
+
+                # If the subject requires a laboratory, check the subject tags in CSPRoom or ETPRoom
+                if requires_laboratory:
+                    sub_name = subject.subject_name.strip().lower()  # Normalize the subject name
+
+                    # Check if the subject tags in CSPRoom or ETPRoom match the normalized subject name
+                    available_rooms = CSPRoom.objects.filter(subject_tags__subject_name__iexact=subject.subject_name)
+                    if not available_rooms.exists():
+                        available_rooms = ETPRoom.objects.filter(subject_tags__subject_name__iexact=subject.subject_name)
+
+                    # If still no rooms are found, check using the normalized version
+                    if not available_rooms.exists():
+                        available_rooms = CSPRoom.objects.filter(subject_tags__subject_name__icontains=sub_name)
+                        if not available_rooms.exists():
+                            available_rooms = ETPRoom.objects.filter(subject_tags__subject_name__icontains=sub_name)
+
+                    # If no matching rooms found, skip the subject
+                    if not available_rooms.exists():
+                        print(f"Skipping subject {subject.subject_name} as no appropriate laboratory room is available.")
+                        continue  # Skip this subject and move to the next one
+
+                # If the subject does not require a laboratory, check for standard rooms (Lecture Rooms)
+                else:
+                    available_rooms = LectureRoom.objects.all()
+
+                # If no available rooms found, skip this subject
+                if not available_rooms.exists():
+                    print(f"Skipping subject {subject.subject_name} due to lack of available rooms.")
+                    continue  # Skip this subject and move to the next one
+
+                # Try to assign a room
+                room_assigned = False
+                for _ in range(20):
+                    new_room = random.choice(available_rooms)
+
+                    # Check for conflicts in the selected room
+                    if not has_conflict(session_occupancy[new_room], timeslot, days):
+                        session = {
+                            'section': section,
+                            'subject': subject,
+                            'room': new_room,
+                            'days': days,
+                            'timeslot': timeslot,
+                            'starttime': starttime,
+                            'requires_laboratory': requires_laboratory,
+                        
+                        }
+                        individual_schedule.append(session)
+                        session_occupancy[new_room].append(session)
+                        room_assigned = True
+                        break
+
+                if not room_assigned:
+                    print(f"Could not assign a room for subject {subject.subject_name} without conflict.")
+
+        population.append(individual_schedule)
+
+    return population
+
+def fitness(individual_schedule):
+
+    fitness_score = 0
+
+    session_occupancy = defaultdict(list)
+
+    for session in individual_schedule:
+
+        section = session['section']  
+        subject = session['subject']
+        start_time = session['starttime']
+        timeslot = session['timeslot']
+        days = session['days']
+        room = session['room']
+        
+        
+        if (start_time, days) in session_occupancy[room]:
+            fitness_score -= 10
+        else:
+            session_occupancy[room].append((start_time, days))
+            fitness_score += 5
+
+    return fitness_score
+
+    
+
+def selection(population, fitness_scores, k=3):
+     selected = random.choices(population, weights=fitness_scores, k=k)
+     
+     return selected
+
+
+def crossover(parent1, parent2):
+     cutoff = random.randint(0, len(parent1) - 1)
+     child1 = parent1[:cutoff] + parent2[cutoff:]
+     child2 = parent2[:cutoff] + parent1[cutoff:]
+     
+     return child1, child2
+
+
+
+
+def mutate(individual, mutation_rate=0.01, session_occupancy=None):
+    
+    if session_occupancy is None:
+        session_occupancy = defaultdict(list)
+        
+    if random.random() < mutation_rate:
+        
+        index = random.randint(0, len(individual) - 1)
+        session = individual[index]
+
+        subject = session.get('subject')
+        if subject is None:
+            return individual  
+        
+        room_preference = (subject.room_preference or "").strip()
+        days = session['days']
+        timeslot = session['timeslot']
+        default_room = session['room']
+        
+        if subject.requires_laboratory:
+            room_preference = str(room_preference).strip()
+            preferred_rooms = Room.objects.filter(room_name__iexact=room_preference, is_laboratory=True)
+            if preferred_rooms.exists():
+                available_rooms = preferred_rooms
+            else:
+                available_rooms = Room.objects.filter(room_name__icontains=room_preference, is_laboratory=True)
+                if not available_rooms.exists():
+                    available_rooms = Room.objects.filter(is_laboratory=True)
+
+        else:
+            room_preference = str(room_preference).strip()
+            preferred_rooms = Room.objects.filter(room_name__iexact=room_preference, is_laboratory=False)
+            if preferred_rooms.exists():
+                available_rooms = preferred_rooms
+            else:
+                available_rooms = Room.objects.filter(room_name__icontains=room_preference, is_laboratory=False)
+                if not available_rooms.exists():
+                    available_rooms = Room.objects.filter(is_laboratory=False)
+
+
+        room_found = False
+        max_attempts = 20
+        for _ in range(max_attempts):
+            new_room = random.choice(available_rooms)
+
+            if not has_conflict(session_occupancy[new_room], timeslot, days):
+
+                session['room'] = new_room
+                session_occupancy[new_room].append((session))
+                room_found = True
+                break
+
+       
+        if not room_found:
+            session['room'] = default_room 
+
+    return individual
+
+
+
+
+''' 
+
+def mutate(individuals, mutation_rate):
+
+    if random.random() < mutation_rate:
+        
+        index = random.randint(0, len(individuals) - 1)
+        session = individuals[index]
+        subject = session['subject']
+        room_preference = (subject.room_preference or "").strip()
+        
+        if subject.requires_laboratory:
+            preferred_rooms = Room.objects.filter(room_name__iexact=room_preference, is_laboratory=True)
+            if preferred_rooms.exists():
+                available_rooms = preferred_rooms
+            else:
+                available_rooms = Room.objects.filter(room_name__icontains=room_preference, is_laboratory=True)
+                if not available_rooms.exists():
+                    available_rooms = Room.objects.filter(is_laboratory=True)
+        else:
+            preferred_rooms = Room.objects.filter(room_name__iexact=room_preference, is_laboratory=False)
+            if preferred_rooms.exists():
+                available_rooms = preferred_rooms
+            else:
+                available_rooms = Room.objects.filter(room_name__icontains=room_preference, is_laboratory=False)
+                if not available_rooms.exists():
+                    available_rooms = Room.objects.filter(is_laboratory=False)
+        if available_rooms.exists():
+            new_room = random.choice(available_rooms)
+            session['room'] = new_room
+
+        individuals[index] = session
+
+    return individuals
+
+
+'''
+
+
+
+class GeneticAlgorithm:
+     
+     def __init__(self, population_size=100, generations=50, mutation_rate=0.01):
+          self.population_size = population_size
+          self.generations = generations
+          self.mutation_rate = mutation_rate
+
+     def run(self):
+          population = initialize_population(self.population_size)
+
+          for _ in range(self.generations):
+
+               population_with_fitness = [(individual, fitness(individual)) for individual in population]  
+               population_with_fitness.sort(key=lambda x: x[1], reverse=True)   
+
+               sorted_population = [individual for individual, _ in population_with_fitness]
+
+               new_population = []
+
+               while len(new_population) < self.population_size:
+                    
+                    #sorted_population = [individual for individual, _ in population_with_fitness]
+                    parents = selection(sorted_population, [score for _, score in population_with_fitness])
+                    offspring1, offspring2 = crossover(parents[0], parents[1])
+
+                    offspring1 = mutate(offspring1, self.mutation_rate)
+                    offspring2 = mutate(offspring2, self.mutation_rate)
+
+                    new_population.extend([offspring1, offspring2])
+
+               population = new_population      
+          
+          best_individual = sorted_population[0]
+     
+          return best_individual
+
+        
+
+def calculate_rmse(population):
+    conflict_counts = []
+
+    for individual in population:
+        session_occupancy = defaultdict(list)
+        conflicts = 0
+
+        for session in individual:
+            room = session['room']
+            parsed_timeslot = parse_timeslot(session['timeslot'])
+            parsed_days = set(parse_days(session['days']))
+
+            # Check for conflicts in the same room
+            for occupied_timeslot, occupied_days in session_occupancy[room]:
+                if parsed_days & occupied_days and timeslot_overlap(parsed_timeslot, occupied_timeslot):
+                    conflicts += 1
+                    break  # Stop checking once a conflict is found
+
+            # Add this session to the room occupancy
+            session_occupancy[room].append((parsed_timeslot, parsed_days))
+
+        # Record the conflict count for this individual
+        conflict_counts.append(conflicts)
+
+    # Calculate RMSE based on the conflicts across all individuals
+    return np.sqrt(np.mean(np.square(conflict_counts)))
+
+
+
+
+def calculate_accuracy(population):
+    accuracies = []
+
+    for individual in population:
+        session_occupancy = defaultdict(list)
+        conflicts = 0
+        total_sessions = len(individual)
+
+        for session in individual:
+            room = session['room']
+            parsed_timeslot = parse_timeslot(session['timeslot'])
+            parsed_days = set(parse_days(session['days']))
+
+            # Check for conflicts in the same room
+            for occupied_timeslot, occupied_days in session_occupancy[room]:
+                if parsed_days & occupied_days and timeslot_overlap(parsed_timeslot, occupied_timeslot):
+                    conflicts += 1
+                    break  # Stop checking once a conflict is found
+
+            # Add this session to the room occupancy
+            session_occupancy[room].append((parsed_timeslot, parsed_days))
+
+        # Calculate the number of conflict-free sessions
+        conflict_free_sessions = max(total_sessions - conflicts, 0)
+        individual_accuracy = conflict_free_sessions / total_sessions if total_sessions > 0 else 0
+        accuracies.append(individual_accuracy)
+
+    # Return average accuracy across the population in percentage
+    return max(np.mean(accuracies) * 100, 0)
+
+def calculate_room_assignment_accuracy(population):
+    correct_assignments = []
+
+    for individual in population:
+        individual_correct = 0
+        total_sessions = len(individual)
+
+        for session in individual:
+            room = session['room']
+            subject = session['subject']
+            requires_laboratory = subject.requires_laboratory
+            subject_tags = subject.subject_name
+
+            # Ensure the room matches the subject and laboratory requirement
+            if requires_laboratory:
+                if isinstance(room, (CSPRoom, ETPRoom)) and room.subject_tags.filter(subject_name=subject_tags).exists():
+                    individual_correct += 1
+            else:
+                if isinstance(room, LectureRoom):
+                    individual_correct += 1
+
+        accuracy = individual_correct / total_sessions if total_sessions > 0 else 0
+        correct_assignments.append(accuracy)
+
+    return np.mean(correct_assignments) * 100
+
+
+
+
+
+
+
+                            
+                            
+                            
+                            
+
+                            
+
+                            
+
+
+                    
+
+
+    
