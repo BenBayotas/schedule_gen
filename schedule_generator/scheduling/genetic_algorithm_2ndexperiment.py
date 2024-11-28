@@ -5,10 +5,9 @@ from .models import *
 import numpy as np
 from math import sqrt
 from django.db.models import Q
-
+import re
 
 # Helper functions
-
 
 def parse_timeslot(timeslot_str):
     """
@@ -27,65 +26,51 @@ def parse_timeslot(timeslot_str):
 def parse_days(days_str):
     """
     Parses the days string (e.g., "M / TH" or "W") into a set of days.
+    Handles empty or invalid strings gracefully.
     """
-    return set(day.strip() for day in days_str.split('/') if day.strip())
+    if not days_str or not isinstance(days_str, str):
+        return set()  # Return an empty set if the string is empty or invalid
+
+    separators = r"[ /,]+"
+    return set(day.strip().upper() for day in re.split(separators, days_str) if day.strip())
 
 
-def time_conflict(session1, session2):
+def timeslot_overlap(timeslot1, timeslot2):
     """
-    Checks if two sessions overlap in time on any common day.
-    Includes edge cases like exact start/end matches and partial overlaps.
+    Checks if two timeslots overlap.
     """
-    start1, end1 = parse_timeslot(session1['timeslot'])
-    start2, end2 = parse_timeslot(session2['timeslot'])
-    days1 = parse_days(session1['days'])
-    days2 = parse_days(session2['days'])
+    start1, end1 = parse_time_string(timeslot1[0]), parse_time_string(timeslot1[1])
+    start2, end2 = parse_time_string(timeslot2[0]), parse_time_string(timeslot2[1])
     
-    # Check for common days between the sessions
-    common_days = days1 & days2
-    if common_days:
-        # Check if times overlap (even partially or exactly)
-        if (start1 < end2 and end1 > start2) or (start2 < end1 and end2 > start1):
-            return True
-    return False
-
+    # Overlaps if start1 < end2 and start2 < end1
+    return start1 < end2 and start2 < end1
 
 
 def has_conflict(room_schedule, timeslot, days_str):
     """
-    Checks if a conflict exists for the given room's schedule, timeslot, and days string.
+    Checks if a conflict exists for the given room's schedule, timeslot, and days.
     """
-    days = parse_days(days_str)  # Convert to a set
+    try:
+        if not days_str:
+            raise ValueError(f"'days_str' is empty or invalid: {days_str}")
+        days = parse_days(days_str)
+    except Exception as e:
+        raise ValueError(f"Error parsing days string '{days_str}': {e}")
+    
     for entry in room_schedule:
-        entry_days = parse_days(entry.get('days', ''))  # Parse stored days string
-        entry_timeslot = entry.get('timeslot')
+        try:
+            entry_days = parse_days(entry.get('days', ''))
+            entry_timeslot = entry.get('timeslot')
 
-        if entry_days and timeslot_overlap(entry_timeslot, timeslot) and days & entry_days:
-            return True
+            if (
+                entry_days 
+                and timeslot_overlap(parse_timeslot(entry_timeslot), parse_timeslot(timeslot)) 
+                and days & entry_days
+            ):
+                return True
+        except Exception as e:
+            raise ValueError(f"Error in room schedule conflict check: {e}")
     return False
-
-
-
-def time_conflict(session1, session2):
-    start1, end1 = parse_timeslot(session1['timeslot'])
-    start2, end2 = parse_timeslot(session2['timeslot'])
-    days1 = set(parse_days(session1['days']))
-    days2 = set(parse_days(session2['days']))
-
-    # Check for overlapping times on any common day
-    if days1 & days2:  # If there’s a common day
-        return max(start1, start2) < min(end1, end2)  # Times overlap
-    return False
-
-
-# Helper function to check for overlapping timeslots
-def timeslot_overlap(ts1, ts2):
-    start1, end1 = ts1
-    start2, end2 = ts2
-    return max(start1, start2) < min(end1, end2)  # Overlaps if there's any intersection
-
-
-
 
 def is_within_allowed_time(timeslot, allowed_start, allowed_end):
     """
@@ -102,6 +87,7 @@ def is_within_allowed_time(timeslot, allowed_start, allowed_end):
     Raises:
         ValueError: If any of the time strings have an invalid format.
     """
+     
     # Helper function to parse time strings into datetime.time objects
     def parse_time_string(time_str):
         try:
@@ -124,10 +110,22 @@ def is_within_allowed_time(timeslot, allowed_start, allowed_end):
     return allowed_start_time <= start_time and end_time <= allowed_end_time
 
 
+# Utility function for parsing time strings
+def parse_time_string(time_str):
+    """
+    Parses a time string (e.g., "09:00AM") into a datetime.time object.
+    """
+    try:
+        return datetime.strptime(time_str.strip(), "%I:%M%p").time()
+    except ValueError as e:
+        raise ValueError(f"Invalid time format '{time_str}': {e}")
+
+
 
 def initialize_population(population_size):
     population = []
     room_occupancy = defaultdict(list)  # Tracks room usage per timeslot and day
+    conflicts = []  # Stores conflicting sessions for analysis
 
     # Fetch all sessions and prefetch related data
     sessions = MajorSession.objects.prefetch_related('section', 'timeslots', 'subject', 'department').all()
@@ -164,24 +162,25 @@ def initialize_population(population_size):
                 print(f"No suitable rooms found for subject {session.subject.subject_name}.")
                 continue
 
-            # Loop through each section in the session
             for section in session.section.all():
                 section_scheduled = False
 
-                # Assign section to a room and timeslot
+                # Loop through available timeslots for this section
                 for timeslot in available_timeslots:
-                    rooms = list(available_rooms)
-                    random.shuffle(rooms)  # Shuffle rooms to reduce bias
-
-                    for room in rooms:
+                    retry_attempts = 20  # Prevent infinite loops
+                    while retry_attempts > 0 and not section_scheduled:
+                        room = random.choice(available_rooms)
                         timeslot_days = parse_days(timeslot.days)
 
-                        # Check if room is free for all days in the timeslot
-                        if all(
-                            not has_conflict(room_occupancy[room], timeslot.timeslot, day)
-                            for day in timeslot_days
-                        ):
-                            # Assign room and timeslot to the section
+                        # Check if the room is already occupied for the chosen timeslot and days
+                        conflict_detected = False
+                        for day in timeslot_days:
+                            if has_conflict(room_occupancy[room], timeslot.timeslot, day):
+                                conflict_detected = True
+                                break
+
+                        if not conflict_detected:
+                            # Assign the room and update occupancy
                             session_entry = {
                                 'section': section,
                                 'subject': session.subject,
@@ -190,31 +189,84 @@ def initialize_population(population_size):
                                 'timeslot': timeslot.timeslot,
                             }
                             individual_schedule.append(session_entry)
-
-                            # Mark room as occupied for each day in the timeslot
                             for day in timeslot_days:
                                 room_occupancy[room].append({
                                     'timeslot': timeslot.timeslot,
                                     'day': day,
-                                    'section': section,
                                 })
-
                             section_scheduled = True
                             break
+                        else:
+                            # If conflict is found, try the next timeslot for the same section
+                            print(f"Conflict detected for section {section}, subject {session.subject.subject_name} in room {room.room_name} at {timeslot.timeslot} on {timeslot.days}. Trying next available timeslot.")
+                            conflicts.append({
+                                'section': section,
+                                'subject': session.subject,
+                                'room': room,
+                                'days': timeslot.days,
+                                'timeslot': timeslot.timeslot,
+                            })
+
+                        retry_attempts -= 1
 
                     if section_scheduled:
                         break
 
                 if not section_scheduled:
-                    print(f"Could not assign a room for section {section} in subject {session.subject.subject_name}.")
+                    print(f"Could not assign a room for section {section} in subject {session.subject.subject_name} after retrying all available timeslots.")
+                    # Attempt to switch rooms if no timeslot is available in the original room
+                    room_found = False
+                    for alt_room in available_rooms:
+                        if alt_room != room:
+                            # Retry in a different room
+                            for timeslot in available_timeslots:
+                                timeslot_days = parse_days(timeslot.days)
+                                conflict_detected = False
+                                for day in timeslot_days:
+                                    if has_conflict(room_occupancy[alt_room], timeslot.timeslot, day):
+                                        conflict_detected = True
+                                        break
+                                if not conflict_detected:
+                                    session_entry = {
+                                        'section': section,
+                                        'subject': session.subject,
+                                        'room': alt_room,
+                                        'days': timeslot.days,
+                                        'timeslot': timeslot.timeslot,
+                                    }
+                                    individual_schedule.append(session_entry)
+                                    for day in timeslot_days:
+                                        room_occupancy[alt_room].append({
+                                            'timeslot': timeslot.timeslot,
+                                            'day': day,
+                                        })
+                                    room_found = True
+                                    break
+                            if room_found:
+                                break
+
+                    if not room_found:
+                        # If no room can be found after trying all rooms, skip the section
+                        print(f"No available room found for section {section} in subject {session.subject.subject_name}. Skipping.")
+                        conflicts.append({
+                            'section': section,
+                            'subject': session.subject,
+                            'room': None,
+                            'days': None,
+                            'timeslot': None,
+                        })
 
         if not individual_schedule:
             print("Warning: Individual schedule is empty. Consider retrying or handling incomplete schedules.")
         population.append(individual_schedule)
 
+    # Log or save conflicts for further analysis
+    if conflicts:
+        print("Conflicts detected:")
+        for conflict in conflicts:
+            print(conflict)
+
     return population
-
-
 
 
 
