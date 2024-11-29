@@ -119,9 +119,11 @@ def assign_room(subject):
     return available_rooms
 
 
+from collections import defaultdict
+
 def initialize_population(population_size):
     population = []
-    session_occupancy = defaultdict(list)
+    session_occupancy = defaultdict(lambda: defaultdict(list))  # Maps room -> department -> sessions
 
     sections = Section.objects.all()
     for _ in range(population_size):
@@ -135,47 +137,54 @@ def initialize_population(population_size):
                 days = subject.days
                 timeslot = subject.timeslot
                 starttime = subject.starttime
-                room_preference = subject.room_preference
                 requires_laboratory = subject.requires_laboratory
 
                 available_rooms = Room.objects.none()
 
-                # If the subject requires a laboratory, check the subject tags in CSPRoom or ETPRoom
-                if requires_laboratory:
-                    sub_name = subject.subject_name.strip().lower()  # Normalize the subject name
+                sub_name = subject.subject_name.strip().lower()
+                dept_name = str(subject.department.department_name)
 
-                    # Check if the subject tags in CSPRoom or ETPRoom match the normalized subject name
-                    available_rooms = CSPRoom.objects.filter(subject_tags__subject_name__iexact=subject.subject_name)
-                    if not available_rooms.exists():
+                # Select rooms based on department and requirements
+                if dept_name == "COMPUTER STUDIES PROGRAM":
+                    if requires_laboratory:
+                        available_rooms = CSPRoom.objects.filter(subject_tags__subject_name__iexact=subject.subject_name)
+                        if not available_rooms.exists():
+                            available_rooms = CSPRoom.objects.filter(subject_tags__subject_name__icontains=sub_name)
+                    else:
+                        available_rooms = LectureRoom.objects.all()
+
+                elif dept_name == "ENGINEERING AND TECHNOLOGY PROGRAM":
+                    if requires_laboratory:
                         available_rooms = ETPRoom.objects.filter(subject_tags__subject_name__iexact=subject.subject_name)
-
-                    # If still no rooms are found, check using the normalized version
-                    if not available_rooms.exists():
-                        available_rooms = CSPRoom.objects.filter(subject_tags__subject_name__icontains=sub_name)
                         if not available_rooms.exists():
                             available_rooms = ETPRoom.objects.filter(subject_tags__subject_name__icontains=sub_name)
+                    else:
+                        available_rooms = LectureRoom.objects.all()
 
-                    # If no matching rooms found, skip the subject
-                    if not available_rooms.exists():
-                        print(f"Skipping subject {subject.subject_name} as no appropriate laboratory room is available.")
-                        continue  # Skip this subject and move to the next one
-
-                # If the subject does not require a laboratory, check for standard rooms (Lecture Rooms)
-                else:
+                elif dept_name == "GENERAL DEPARTMENTS":
                     available_rooms = LectureRoom.objects.all()
 
-                # If no available rooms found, skip this subject
+                else:
+                    print(f"Skipping subject {subject.subject_name} due to unrecognized department: {dept_name}")
+                    continue
+
                 if not available_rooms.exists():
                     print(f"Skipping subject {subject.subject_name} due to lack of available rooms.")
-                    continue  # Skip this subject and move to the next one
+                    continue
 
-                # Try to assign a room
+                # Assign a room while avoiding conflicts
                 room_assigned = False
-                for _ in range(20):
+                for _ in range(10):
                     new_room = random.choice(available_rooms)
 
-                    # Check for conflicts in the selected room
-                    if not has_conflict(session_occupancy[new_room], timeslot, days):
+                    # Check for conflicts in the selected room across all departments
+                    conflicts = False
+                    for sessions in session_occupancy[new_room].values():
+                        if has_conflict(sessions, timeslot, days):
+                            conflicts = True
+                            break
+
+                    if not conflicts:
                         session = {
                             'section': section,
                             'subject': subject,
@@ -184,10 +193,9 @@ def initialize_population(population_size):
                             'timeslot': timeslot,
                             'starttime': starttime,
                             'requires_laboratory': requires_laboratory,
-                        
                         }
                         individual_schedule.append(session)
-                        session_occupancy[new_room].append(session)
+                        session_occupancy[new_room][dept_name].append(session)
                         room_assigned = True
                         break
 
@@ -197,6 +205,7 @@ def initialize_population(population_size):
         population.append(individual_schedule)
 
     return population
+
 
 def fitness(individual_schedule):
 
@@ -281,7 +290,7 @@ def mutate(individual, mutation_rate=0.01, session_occupancy=None):
 
 
         room_found = False
-        max_attempts = 20
+        max_attempts = 10
         for _ in range(max_attempts):
             new_room = random.choice(available_rooms)
 
@@ -342,40 +351,57 @@ def mutate(individuals, mutation_rate):
 
 
 class GeneticAlgorithm:
-     
-     def __init__(self, population_size=100, generations=50, mutation_rate=0.01):
-          self.population_size = population_size
-          self.generations = generations
-          self.mutation_rate = mutation_rate
+    def __init__(self, population_size=100, generations=50, mutation_rate=0.01):
+        self.population_size = population_size
+        self.generations = generations
+        self.mutation_rate = mutation_rate
 
-     def run(self):
-          population = initialize_population(self.population_size)
+    def run(self):
+        population = initialize_population(self.population_size)
 
-          for _ in range(self.generations):
+        for _ in range(self.generations):
+            # Identify and remove conflicting sessions
+            clean_population = []
+            for individual in population:
+                conflicts = []
+                session_occupancy = defaultdict(list)
+                clean_individual = []
 
-               population_with_fitness = [(individual, fitness(individual)) for individual in population]  
-               population_with_fitness.sort(key=lambda x: x[1], reverse=True)   
+                for session in individual:
+                    room = session['room']
+                    timeslot = session['timeslot']
+                    days = session['days']
 
-               sorted_population = [individual for individual, _ in population_with_fitness]
+                    # Check for conflicts
+                    if has_conflict(session_occupancy[room], timeslot, days):
+                        conflicts.append(session)
+                    else:
+                        clean_individual.append(session)
+                        session_occupancy[room].append(session)
 
-               new_population = []
+                clean_population.append(clean_individual)
 
-               while len(new_population) < self.population_size:
-                    
-                    #sorted_population = [individual for individual, _ in population_with_fitness]
-                    parents = selection(sorted_population, [score for _, score in population_with_fitness])
-                    offspring1, offspring2 = crossover(parents[0], parents[1])
+            # Evaluate fitness of clean population
+            population_with_fitness = [(individual, fitness(individual)) for individual in clean_population]
+            population_with_fitness.sort(key=lambda x: x[1], reverse=True)
 
-                    offspring1 = mutate(offspring1, self.mutation_rate)
-                    offspring2 = mutate(offspring2, self.mutation_rate)
+            sorted_population = [individual for individual, _ in population_with_fitness]
 
-                    new_population.extend([offspring1, offspring2])
+            # Create new population through selection, crossover, and mutation
+            new_population = []
+            while len(new_population) < self.population_size:
+                parents = selection(sorted_population, [score for _, score in population_with_fitness])
+                offspring1, offspring2 = crossover(parents[0], parents[1])
 
-               population = new_population      
-          
-          best_individual = sorted_population[0]
-     
-          return best_individual
+                offspring1 = mutate(offspring1, self.mutation_rate)
+                offspring2 = mutate(offspring2, self.mutation_rate)
+
+                new_population.extend([offspring1, offspring2])
+
+            population = new_population
+
+        best_individual = sorted_population[0]
+        return best_individual
 
         
 
@@ -383,29 +409,29 @@ def calculate_rmse(population):
     conflict_counts = []
 
     for individual in population:
-        session_occupancy = defaultdict(list)
+        session_occupancy = defaultdict(lambda: defaultdict(list))  # Maps room -> department -> sessions
         conflicts = 0
 
         for session in individual:
             room = session['room']
-            parsed_timeslot = parse_timeslot(session['timeslot'])
-            parsed_days = set(parse_days(session['days']))
+            dept_name = session['subject'].department.department_name
+            timeslot = session['timeslot']
+            days = session['days']
 
-            # Check for conflicts in the same room
-            for occupied_timeslot, occupied_days in session_occupancy[room]:
-                if parsed_days & occupied_days and timeslot_overlap(parsed_timeslot, occupied_timeslot):
+            # Check for conflicts within the same room across departments
+            for sessions in session_occupancy[room].values():
+                if has_conflict(sessions, timeslot, days):
                     conflicts += 1
                     break  # Stop checking once a conflict is found
 
-            # Add this session to the room occupancy
-            session_occupancy[room].append((parsed_timeslot, parsed_days))
+            # Add the session to the room's occupancy
+            session_occupancy[room][dept_name].append(session)
 
         # Record the conflict count for this individual
         conflict_counts.append(conflicts)
 
     # Calculate RMSE based on the conflicts across all individuals
-    return np.sqrt(np.mean(np.square(conflict_counts)))
-
+    return np.sqrt(np.mean(np.square(conflict_counts))) if conflict_counts else 0
 
 
 
@@ -413,23 +439,24 @@ def calculate_accuracy(population):
     accuracies = []
 
     for individual in population:
-        session_occupancy = defaultdict(list)
+        session_occupancy = defaultdict(lambda: defaultdict(list))  # Maps room -> department -> sessions
         conflicts = 0
         total_sessions = len(individual)
 
         for session in individual:
             room = session['room']
-            parsed_timeslot = parse_timeslot(session['timeslot'])
-            parsed_days = set(parse_days(session['days']))
+            dept_name = session['subject'].department.department_name
+            timeslot = session['timeslot']
+            days = session['days']
 
-            # Check for conflicts in the same room
-            for occupied_timeslot, occupied_days in session_occupancy[room]:
-                if parsed_days & occupied_days and timeslot_overlap(parsed_timeslot, occupied_timeslot):
+            # Check for conflicts within the same room across departments
+            for sessions in session_occupancy[room].values():
+                if has_conflict(sessions, timeslot, days):
                     conflicts += 1
                     break  # Stop checking once a conflict is found
 
-            # Add this session to the room occupancy
-            session_occupancy[room].append((parsed_timeslot, parsed_days))
+            # Add the session to the room's occupancy
+            session_occupancy[room][dept_name].append(session)
 
         # Calculate the number of conflict-free sessions
         conflict_free_sessions = max(total_sessions - conflicts, 0)
@@ -437,7 +464,10 @@ def calculate_accuracy(population):
         accuracies.append(individual_accuracy)
 
     # Return average accuracy across the population in percentage
-    return max(np.mean(accuracies) * 100, 0)
+    return np.mean(accuracies) * 100 if accuracies else 0
+
+
+
 
 def calculate_room_assignment_accuracy(population):
     correct_assignments = []
@@ -450,20 +480,32 @@ def calculate_room_assignment_accuracy(population):
             room = session['room']
             subject = session['subject']
             requires_laboratory = subject.requires_laboratory
-            subject_tags = subject.subject_name
+            subject_tags = subject.subject_name.strip().lower()
+            dept_name = subject.department.department_name
 
-            # Ensure the room matches the subject and laboratory requirement
-            if requires_laboratory:
-                if isinstance(room, (CSPRoom, ETPRoom)) and room.subject_tags.filter(subject_name=subject_tags).exists():
+            # Check if the room matches the subject's requirements
+            if dept_name == "COMPUTER STUDIES PROGRAM":
+                if requires_laboratory and isinstance(room, CSPRoom) and room.subject_tags.filter(subject_name__icontains=subject_tags).exists():
                     individual_correct += 1
-            else:
+                elif not requires_laboratory and isinstance(room, LectureRoom):
+                    individual_correct += 1
+
+            elif dept_name == "ENGINEERING AND TECHNOLOGY PROGRAM":
+                if requires_laboratory and isinstance(room, ETPRoom) and room.subject_tags.filter(subject_name__icontains=subject_tags).exists():
+                    individual_correct += 1
+                elif not requires_laboratory and isinstance(room, LectureRoom):
+                    individual_correct += 1
+
+            elif dept_name == "GENERAL DEPARTMENTS":
                 if isinstance(room, LectureRoom):
                     individual_correct += 1
 
+        # Calculate the accuracy for this individual
         accuracy = individual_correct / total_sessions if total_sessions > 0 else 0
         correct_assignments.append(accuracy)
 
-    return np.mean(correct_assignments) * 100
+    # Return average room assignment accuracy in percentage
+    return np.mean(correct_assignments) * 100 if correct_assignments else 0
 
 
 
