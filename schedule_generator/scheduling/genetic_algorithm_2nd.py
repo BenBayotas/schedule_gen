@@ -119,8 +119,6 @@ def assign_room(subject):
     return available_rooms
 
 
-from collections import defaultdict
-
 def initialize_population(population_size):
     population = []
     session_occupancy = defaultdict(lambda: defaultdict(list))  # Maps room -> department -> sessions
@@ -306,48 +304,6 @@ def mutate(individual, mutation_rate=0.01, session_occupancy=None):
             session['room'] = default_room 
 
     return individual
-
-
-
-
-''' 
-
-def mutate(individuals, mutation_rate):
-
-    if random.random() < mutation_rate:
-        
-        index = random.randint(0, len(individuals) - 1)
-        session = individuals[index]
-        subject = session['subject']
-        room_preference = (subject.room_preference or "").strip()
-        
-        if subject.requires_laboratory:
-            preferred_rooms = Room.objects.filter(room_name__iexact=room_preference, is_laboratory=True)
-            if preferred_rooms.exists():
-                available_rooms = preferred_rooms
-            else:
-                available_rooms = Room.objects.filter(room_name__icontains=room_preference, is_laboratory=True)
-                if not available_rooms.exists():
-                    available_rooms = Room.objects.filter(is_laboratory=True)
-        else:
-            preferred_rooms = Room.objects.filter(room_name__iexact=room_preference, is_laboratory=False)
-            if preferred_rooms.exists():
-                available_rooms = preferred_rooms
-            else:
-                available_rooms = Room.objects.filter(room_name__icontains=room_preference, is_laboratory=False)
-                if not available_rooms.exists():
-                    available_rooms = Room.objects.filter(is_laboratory=False)
-        if available_rooms.exists():
-            new_room = random.choice(available_rooms)
-            session['room'] = new_room
-
-        individuals[index] = session
-
-    return individuals
-
-
-'''
-
 
 
 class GeneticAlgorithm:

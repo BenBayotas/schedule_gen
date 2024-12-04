@@ -1,8 +1,10 @@
 from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponse
-from .genetic_algorithm_copy import GeneticAlgorithm, calculate_rmse, calculate_accuracy, calculate_room_assignment_accuracy
+from .genetic_algorithm_2ndcopy import *
 from .forms import *
 from django.urls import reverse
+from collections import defaultdict
+import numpy as np
 
 
 # Create your views here.
@@ -142,7 +144,7 @@ def schedule_view(request):
 
 
 
-
+'''
 def schedule_view_rmse(request):
     # Initialize the genetic algorithm and get the best schedule
     ga = GeneticAlgorithm(population_size=100, generations=50, mutation_rate=0.01)
@@ -188,6 +190,53 @@ def schedule_view_rmse(request):
     }
 
     return render(request, 'schedule_view_rmse.html', context)
+'''
+
+
+
+def schedule_view_rmse(request):
+    # Initialize the genetic algorithm and get the best schedule
+    ga = GeneticAlgorithm(population_size=100, generations=50, mutation_rate=0.01)
+    best_schedule = ga.run()
+
+    # Evaluate the best schedule
+    mape, rmse, accuracy = evaluate_individual(best_schedule)
+
+    # Format the schedule for display
+    formatted_schedule = []
+    for session in best_schedule:
+        formatted_schedule.append({
+            'room': session['room'].room_id,
+            'section': getattr(session['section'], 'name', str(session['section'])),
+            'subject': getattr(session['subject'], 'subject_name', str(session['subject'])),
+            'timeslot': session['timeslot'],  # Assuming this is a string representation
+            'days': session['days'].replace('/', ' / '),  # Add spacing for readability
+        })
+
+    # Sort the schedule based on room priority
+    def room_sort_key(session):
+        room = session['room']
+        if room.startswith("CB"):
+            return (0, room)
+        elif room.startswith("CBS"):
+            return (1, room)
+        elif room.startswith("CBE"):
+            return (2, room)
+        else:
+            return (3, room)
+
+    formatted_schedule.sort(key=room_sort_key)
+
+    # Pass the schedule and evaluation results to the template
+    context = {
+        'schedule': formatted_schedule,
+        'mape': mape,
+        'rmse': rmse,
+        'accuracy': accuracy,
+    }
+
+    return render(request, 'schedule_view_rmse.html', context)
+
 
 
 

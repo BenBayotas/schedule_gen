@@ -9,10 +9,19 @@
 <body>
 
     <h1>Schedule Evaluation Results</h1>
+    <!-- Uncomment these lines to show evaluation metrics -->
     <!-- <p><strong>RMSE (Room Assignment Conflicts):</strong> {{ rmse }}</p>
     <p><strong>Overall Scheduling Accuracy (%):</strong> {{ accuracy }}</p>
     <p><strong>Room Assignment Accuracy (%):</strong> {{ room_assignment_accuracy }}</p> -->
 
+
+    <h2>Evaluation Metrics</h2>
+    <p>MAPE: {{ mape }}%</p>
+    <p>RMSE: {{ rmse }}</p>
+    <p>Accuracy: {{ accuracy }}%</p>
+
+    <!-- Scheduled Sessions -->
+    <h2>Assigned Sessions</h2>
     <table>
         <tr>
             <th>Room</th>
@@ -32,8 +41,27 @@
         {% endfor %}
     </table>
 
+    <!-- Unassigned Sessions 
+    <h2>Unassigned Sessions</h2>
+    <table>
+        <tr>
+            <th>Section</th>
+            <th>Subject</th>
+            <th>Days</th>
+            <th>Timeslot</th>
+            <th>Reason</th>
+        </tr>
+        {% for session in unassigned_sessions %}
+        <tr>
+            <td>{{ session.section }}</td>
+            <td>{{ session.subject }}</td>
+            <td>{{ session.days }}</td>
+            <td>{{ session.timeslot }}</td>
+            <td>{{ session.reason }}</td>
+        </tr>
+        {% endfor %}
+    </table>  -->
+
 </body>
 </html>
-
-
 
