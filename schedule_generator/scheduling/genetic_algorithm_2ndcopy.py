@@ -361,11 +361,18 @@ class GeneticAlgorithm:
 
         
 def calculate_mape(actual_values, predicted_values):
-    """Calculate MAPE."""
+    """Calculate MAPE, ignoring zero values in actual_values."""
     actual_values = np.array(actual_values)
     predicted_values = np.array(predicted_values)
-    epsilon = 1e-10
-    actual_values = np.where(actual_values == 0, epsilon, actual_values)
+
+    # Filter out cases where actual_values are zero
+    non_zero_indices = actual_values != 0
+    actual_values = actual_values[non_zero_indices]
+    predicted_values = predicted_values[non_zero_indices]
+
+    # Handle cases with all zeros gracefully
+    if len(actual_values) == 0:
+        return 0.0  # No meaningful MAPE calculation possible
 
     return np.mean(np.abs((actual_values - predicted_values) / actual_values)) * 100
 
