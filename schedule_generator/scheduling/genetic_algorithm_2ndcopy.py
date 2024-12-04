@@ -383,12 +383,14 @@ def calculate_accuracy(total_assignments, correct_assignments):
 
 
 def evaluate_individual(individual_schedule):
-    """Evaluate an individual schedule based on MAPE, RMSE, and Accuracy."""
+    """
+    Evaluate an individual schedule based on room assignment correctness and conflict detection.
+    """
     total_sessions = len(individual_schedule)
     correct_assignments = 0
     actual_values = []
     predicted_values = []
-    session_occupancy = defaultdict(list)
+    session_occupancy = defaultdict(list)  # Tracks room assignments for conflict checking
 
     for session in individual_schedule:
         subject = session['subject']
@@ -396,29 +398,42 @@ def evaluate_individual(individual_schedule):
         days = session['days']
         timeslot = session['timeslot']
 
-        # Check room assignment accuracy based on department and subject_tags
-        department = subject.department.department_name
+        department_name = subject.department.department_name
+        requires_lab = subject.requires_laboratory
         room_correct = False
 
-        if department == "COMPUTER STUDIES PROGRAM":
-            room_correct = assigned_room in CSPRoom.objects.filter(subject_tags__subject_name__iexact=subject.subject_name)
-        elif department == "ENGINEERING AND TECHNOLOGY PROGRAM":
-            room_correct = assigned_room in ETPRoom.objects.filter(subject_tags__subject_name__iexact=subject.subject_name)
-        elif department == "GENERAL DEPARTMENTS":
+        # Room assignment logic
+        if department_name == "COMPUTER STUDIES PROGRAM":
+            if requires_lab:
+                room_correct = assigned_room in CSPRoom.objects.filter(
+                    subject_tags__subject_name__iexact=subject.subject_name
+                )
+            else:
+                room_correct = assigned_room in LectureRoom.objects.all()
+        elif department_name == "ENGINEERING AND TECHNOLOGY PROGRAM":
+            if requires_lab:
+                room_correct = assigned_room in ETPRoom.objects.filter(
+                    subject_tags__subject_name__iexact=subject.subject_name
+                )
+            else:
+                room_correct = assigned_room in LectureRoom.objects.all()
+        elif department_name == "GENERAL DEPARTMENTS":
             room_correct = assigned_room in LectureRoom.objects.all()
 
+        # Add to evaluation metrics
         actual_values.append(1 if room_correct else 0)
         predicted_values.append(1 if assigned_room else 0)
 
-        # Check timeslot conflicts
-        if not has_conflict(session_occupancy[assigned_room], timeslot, days) and room_correct:
+        # Check for conflicts within the room
+        current_room_sessions = session_occupancy[assigned_room]
+        if not has_conflict(current_room_sessions, timeslot, days) and room_correct:
             correct_assignments += 1
-            # Append a dictionary instead of a tuple
             session_occupancy[assigned_room].append({
                 'timeslot': timeslot,
                 'days': days
             })
 
+    # Calculate metrics
     mape = calculate_mape(actual_values, predicted_values)
     rmse = calculate_rmse(actual_values, predicted_values)
     accuracy = calculate_accuracy(total_sessions, correct_assignments)
