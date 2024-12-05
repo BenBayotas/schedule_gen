@@ -370,18 +370,11 @@ def calculate_mape(actual_values, predicted_values):
     actual_values = actual_values[non_zero_indices]
     predicted_values = predicted_values[non_zero_indices]
 
-    # Debugging information
-    print(f"Filtered Actual Values: {actual_values}")
-    print(f"Filtered Predicted Values: {predicted_values}")
-
     # Handle cases with all zeros gracefully
     if len(actual_values) == 0:
-        print("No actual values available for MAPE calculation.")
         return 0.0  # No meaningful MAPE calculation possible
 
-    mape = np.mean(np.abs((actual_values - predicted_values) / actual_values)) * 100
-    print(f"Calculated MAPE: {mape}%")
-    return mape
+    return np.mean(np.abs((actual_values - predicted_values) / actual_values)) * 100
 
 
 def calculate_rmse(actual_values, predicted_values):
@@ -401,10 +394,10 @@ def evaluate_individual(individual_schedule):
     Evaluate an individual schedule based on room assignment correctness and conflict detection.
     """
     total_sessions = len(individual_schedule)
-    correct_assignments = 0  # Tracks sessions with correct room assignments
+    correct_assignments = 0
     actual_values = []
     predicted_values = []
-    session_occupancy = defaultdict(list)  # Tracks room usage for conflict detection
+    session_occupancy = defaultdict(list)  # Tracks room assignments for conflict checking
 
     for session in individual_schedule:
         subject = session['subject']
@@ -414,39 +407,40 @@ def evaluate_individual(individual_schedule):
 
         department_name = subject.department.department_name
         requires_lab = subject.requires_laboratory
+        room_correct = False
 
-        # Determine the expected rooms based on department and lab requirements
+        # Room assignment logic
         if department_name == "COMPUTER STUDIES PROGRAM":
-            expected_rooms = CSPRoom.objects.filter(
-                subject_tags__subject_name__iexact=subject.subject_name
-            ) if requires_lab else CSPRoom.objects.all()
-        elif department_name == "ENGINEERING TECHNOLOGY PROGRAM":
-            expected_rooms = ETPRoom.objects.filter(
-                subject_tags__subject_name__iexact=subject.subject_name
-            ) if requires_lab else ETPRoom.objects.all()
-        elif department_name == "GENERAL DEPARTMENT":
-            expected_rooms = LectureRoom.objects.all()
-        else:
-            expected_rooms = []  # Default empty for unknown departments
+            if requires_lab:
+                room_correct = assigned_room in CSPRoom.objects.filter(
+                    subject_tags__subject_name__iexact=subject.subject_name
+                )
+            else:
+                room_correct = assigned_room in LectureRoom.objects.all()
+        elif department_name == "ENGINEERING AND TECHNOLOGY PROGRAM":
+            if requires_lab:
+                room_correct = assigned_room in ETPRoom.objects.filter(
+                    subject_tags__subject_name__iexact=subject.subject_name
+                )
+            else:
+                room_correct = assigned_room in LectureRoom.objects.all()
+        elif department_name == "GENERAL DEPARTMENTS":
+            room_correct = assigned_room in LectureRoom.objects.all()
 
-        # Fallback: Allow assigned rooms if `expected_rooms` is empty
-        room_correct = assigned_room in expected_rooms if expected_rooms else True
-
-        # Check for conflicts only if the assigned room is correct
-        if room_correct:
-            current_room_sessions = session_occupancy[assigned_room]
-            if not has_conflict(current_room_sessions, timeslot, days):
-                correct_assignments += 1
-                session_occupancy[assigned_room].append({
-                    'timeslot': timeslot,
-                    'days': days
-                })
-
-        # Add correctness evaluation for metrics
+        # Add to evaluation metrics
         actual_values.append(1 if room_correct else 0)
         predicted_values.append(1 if assigned_room else 0)
 
-    # Calculate evaluation metrics
+        # Check for conflicts within the room
+        current_room_sessions = session_occupancy[assigned_room]
+        if not has_conflict(current_room_sessions, timeslot, days) and room_correct:
+            correct_assignments += 1
+            session_occupancy[assigned_room].append({
+                'timeslot': timeslot,
+                'days': days
+            })
+
+    # Calculate metrics
     mape = calculate_mape(actual_values, predicted_values)
     rmse = calculate_rmse(actual_values, predicted_values)
     accuracy = calculate_accuracy(total_sessions, correct_assignments)
