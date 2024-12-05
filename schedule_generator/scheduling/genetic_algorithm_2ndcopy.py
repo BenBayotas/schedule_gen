@@ -360,28 +360,6 @@ class GeneticAlgorithm:
         return best_individual
 
         
-def calculate_mape(actual_values, predicted_values):
-    """Calculate MAPE, ignoring zero values in actual_values."""
-    actual_values = np.array(actual_values)
-    predicted_values = np.array(predicted_values)
-
-    # Filter out cases where actual_values are zero
-    non_zero_indices = actual_values != 0
-    actual_values = actual_values[non_zero_indices]
-    predicted_values = predicted_values[non_zero_indices]
-
-    # Debugging information
-    print(f"Filtered Actual Values: {actual_values}")
-    print(f"Filtered Predicted Values: {predicted_values}")
-
-    # Handle cases with all zeros gracefully
-    if len(actual_values) == 0:
-        print("No actual values available for MAPE calculation.")
-        return 0.0  # No meaningful MAPE calculation possible
-
-    mape = np.mean(np.abs((actual_values - predicted_values) / actual_values)) * 100
-    print(f"Calculated MAPE: {mape}%")
-    return mape
 
 
 def calculate_rmse(actual_values, predicted_values):
@@ -396,14 +374,27 @@ def calculate_accuracy(total_assignments, correct_assignments):
     return (correct_assignments / total_assignments) * 100
 
 
+def calculate_conflict_free_rate(total_sessions, conflict_free_sessions):
+    """Calculate the percentage of sessions without conflicts."""
+    return (conflict_free_sessions / total_sessions) * 100
+
+
+def calculate_room_assignment_validity(total_sessions, valid_assignments):
+    """Calculate the percentage of valid room assignments."""
+    return (valid_assignments / total_sessions) * 100
+
+
 def evaluate_individual(individual_schedule):
     """
-    Evaluate an individual schedule based on room assignment correctness and conflict detection.
+    Evaluate an individual schedule based on room assignment correctness,
+    conflict detection, and additional metrics.
     """
     total_sessions = len(individual_schedule)
     correct_assignments = 0  # Tracks sessions with correct room assignments
-    actual_values = []
-    predicted_values = []
+    conflict_free_sessions = 0  # Tracks sessions without conflicts
+    valid_room_assignments = 0  # Tracks valid room assignments
+    actual_values = []  # Used for RMSE calculation
+    predicted_values = []  # Used for RMSE calculation
     session_occupancy = defaultdict(list)  # Tracks room usage for conflict detection
 
     for session in individual_schedule:
@@ -419,40 +410,63 @@ def evaluate_individual(individual_schedule):
         if department_name == "COMPUTER STUDIES PROGRAM":
             expected_rooms = CSPRoom.objects.filter(
                 subject_tags__subject_name__iexact=subject.subject_name
-            ) if requires_lab else CSPRoom.objects.all()
+            ) if requires_lab else LectureRoom.objects.all()
         elif department_name == "ENGINEERING TECHNOLOGY PROGRAM":
             expected_rooms = ETPRoom.objects.filter(
                 subject_tags__subject_name__iexact=subject.subject_name
-            ) if requires_lab else ETPRoom.objects.all()
+            ) if requires_lab else LectureRoom.objects.all()
         elif department_name == "GENERAL DEPARTMENT":
             expected_rooms = LectureRoom.objects.all()
         else:
             expected_rooms = []  # Default empty for unknown departments
 
-        # Fallback: Allow assigned rooms if `expected_rooms` is empty
+        # Validate the room assignment
         room_correct = assigned_room in expected_rooms if expected_rooms else True
+        if room_correct:
+            valid_room_assignments += 1  # Increment valid assignments count
 
         # Check for conflicts only if the assigned room is correct
+        no_conflict = True
         if room_correct:
             current_room_sessions = session_occupancy[assigned_room]
-            if not has_conflict(current_room_sessions, timeslot, days):
-                correct_assignments += 1
+            no_conflict = not has_conflict(current_room_sessions, timeslot, days)
+            if no_conflict:
+                conflict_free_sessions += 1
                 session_occupancy[assigned_room].append({
                     'timeslot': timeslot,
                     'days': days
                 })
 
-        # Add correctness evaluation for metrics
-        actual_values.append(1 if room_correct else 0)
-        predicted_values.append(1 if assigned_room else 0)
+        # Update correctness metric
+        if room_correct and no_conflict:
+            correct_assignments += 1
+
+
+        # Add correctness evaluation for RMSE metrics
+        actual_values.append(1 if room_correct else 0)  # Ideal value: 1 (correct assignment)
+        predicted_values.append(1 if assigned_room else 0)  # Assigned value: 1 if room is assigned
+
 
     # Calculate evaluation metrics
-    mape = calculate_mape(actual_values, predicted_values)
     rmse = calculate_rmse(actual_values, predicted_values)
     accuracy = calculate_accuracy(total_sessions, correct_assignments)
+    conflict_free_rate = calculate_conflict_free_rate(total_sessions, conflict_free_sessions)
+    room_assignment_validity = calculate_room_assignment_validity(total_sessions, valid_room_assignments)
 
-    return mape, rmse, accuracy
 
+    # Format metrics to two decimal places
+    rmse = round(rmse, 2)
+    accuracy = round(accuracy, 2)
+    conflict_free_rate = round(conflict_free_rate, 2)
+    room_assignment_validity = round(room_assignment_validity, 2)
+
+    # Return all metrics
+    return {
+        "RMSE": rmse,
+        "Accuracy": accuracy,
+        "Conflict-Free Rate": conflict_free_rate,
+        "Room Assignment Validity": room_assignment_validity,
+    }
 
 
 

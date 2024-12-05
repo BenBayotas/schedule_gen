@@ -200,7 +200,7 @@ def schedule_view_rmse(request):
     best_schedule = ga.run()
 
     # Evaluate the best schedule
-    mape, rmse, accuracy = evaluate_individual(best_schedule)
+    evaluation_results = evaluate_individual(best_schedule)
 
     # Format the schedule for display
     formatted_schedule = []
@@ -230,9 +230,10 @@ def schedule_view_rmse(request):
     # Pass the schedule and evaluation results to the template
     context = {
         'schedule': formatted_schedule,
-        'mape': mape,
-        'rmse': rmse,
-        'accuracy': accuracy,
+        'rmse': evaluation_results['RMSE'],
+        'accuracy': evaluation_results['Accuracy'],
+        'conflict_free_rate': evaluation_results['Conflict-Free Rate'],
+        'room_assignment_validity': evaluation_results['Room Assignment Validity'],
     }
 
     return render(request, 'schedule_view_rmse.html', context)
