@@ -206,9 +206,9 @@ def schedule_view_rmse(request):
     formatted_schedule = []
     for session in best_schedule:
         formatted_schedule.append({
-            'room': session['room'].room_id,
-            'section': getattr(session['section'], 'name', str(session['section'])),
-            'subject': getattr(session['subject'], 'subject_name', str(session['subject'])),
+            'room': session['room'],  # Use 'room' as a string (room_id)
+            'section': getattr(session['section'], 'name', str(session['section'])),  # Use 'name' if available
+            'subject': getattr(session['subject'], 'subject_name', str(session['subject'])),  # Use subject_name if available
             'timeslot': session['timeslot'],  # Assuming this is a string representation
             'days': session['days'].replace('/', ' / '),  # Add spacing for readability
         })
@@ -230,15 +230,13 @@ def schedule_view_rmse(request):
     # Pass the schedule and evaluation results to the template
     context = {
         'schedule': formatted_schedule,
-        'rmse': evaluation_results['RMSE'],
-        'accuracy': evaluation_results['Accuracy'],
-        'conflict_free_rate': evaluation_results['Conflict-Free Rate'],
-        'room_assignment_validity': evaluation_results['Room Assignment Validity'],
+        'rmse': evaluation_results.get('RMSE', 'N/A'),
+        'accuracy': evaluation_results.get('Accuracy', 'N/A'),
+        'conflict_free_rate': evaluation_results.get('Conflict-Free Rate', 'N/A'),
+        'room_assignment_validity': evaluation_results.get('Room Assignment Validity', 'N/A'),
     }
 
     return render(request, 'schedule_view_rmse.html', context)
-
-
 
 
 
