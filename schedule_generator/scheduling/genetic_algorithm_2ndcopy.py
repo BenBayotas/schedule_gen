@@ -376,6 +376,8 @@ def evaluate_individual(individual_schedule):
     incorrect_assignments = 0
     session_occupancy = defaultdict(list)  # Global room occupancy keyed by room_id
 
+    misassigned_sessions = []  # Track misassigned sessions
+
     for session in individual_schedule:
         subject = session['subject']
         assigned_room_id = session['room']
@@ -415,20 +417,39 @@ def evaluate_individual(individual_schedule):
                     correct_room_assignments += 1
                 else:
                     incorrect_assignments += 1
+                    misassigned_sessions.append({
+                        "session": session,
+                        "issue": "Assigned room is not a laboratory but one is required."
+                    })
             else:
                 correct_room_assignments += 1
         else:
             incorrect_assignments += 1
+            misassigned_sessions.append({
+                "session": session,
+                "issue": "Room does not match expected room type for subject/department."
+            })
 
         # Check for conflicts
         current_room_sessions = session_occupancy[assigned_room_id]
-        new_session = {'timeslot': timeslot, 'days': days}
+        new_session = {'timeslot': timeslot, 'days': days, 'room': assigned_room_id}
 
-        if has_conflict(current_room_sessions, timeslot, days):
-            print(f"Conflict found with session: {new_session}")
-            conflicting_sessions += 1
-        else:
+        conflict_found = False
+        for occupied_session in current_room_sessions:
+            if has_conflict([occupied_session], timeslot, days):
+                print(f"Conflict found: {new_session} conflicts with {occupied_session}")
+                conflicting_sessions += 1
+                conflict_found = True
+                break
+
+        if not conflict_found:
             session_occupancy[assigned_room_id].append(new_session)
+
+    # Log misassigned sessions
+    if misassigned_sessions:
+        print("\nMisassigned Sessions:")
+        for entry in misassigned_sessions:
+            print(f"Session: {entry['session']}, Issue: {entry['issue']}")
 
     # Calculate evaluation metrics
     population = [individual_schedule]  # Single individual wrapped in a list
@@ -449,8 +470,6 @@ def evaluate_individual(individual_schedule):
         "Room Assignment Validity": room_assignment_validity,
         "Accuracy": accuracy,
     }
-
-
 
                             
                             
